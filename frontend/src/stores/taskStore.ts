@@ -228,7 +228,7 @@ export const useTaskStore = create<TaskState>()(
             tasks: state.tasks.filter((t) => t.id !== id),
             currentTask: state.currentTask?.id === id ? null : state.currentTask,
             activeSubscriptions: new Set(
-              [...state.activeSubscriptions].filter((tid) => tid !== id)
+              Array.from(state.activeSubscriptions).filter((tid) => tid !== id)
             ),
             isLoading: false,
           }));
