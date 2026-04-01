@@ -3,6 +3,7 @@ package com.example.testproject.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.testproject.entity.Task;
 import com.example.testproject.mapper.TaskMapper;
+import com.example.testproject.service.TaskNodeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -21,6 +22,7 @@ class TaskServiceImplTest {
 
     private TaskServiceImpl taskService;
     private TaskMapper taskMapper;
+    private TaskNodeService taskNodeService;
 
     private UUID taskId;
     private UUID workflowId;
@@ -30,7 +32,8 @@ class TaskServiceImplTest {
     void setUp() throws Exception {
         MockitoAnnotations.openMocks(this);
         taskMapper = Mockito.mock(TaskMapper.class);
-        taskService = Mockito.spy(new TaskServiceImpl());
+        taskNodeService = Mockito.mock(TaskNodeService.class);
+        taskService = Mockito.spy(new TaskServiceImpl(taskNodeService));
 
         // Use reflection to inject mock mapper into ServiceImpl base class
         Field baseMapperField = taskService.getClass().getSuperclass().getDeclaredField("baseMapper");
