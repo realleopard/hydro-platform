@@ -25,7 +25,7 @@ class DependencyResolverTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         dagParser = new DagParser(objectMapper);
-        dependencyResolver = new DependencyResolver(dagParser);
+        dependencyResolver = new DependencyResolver(dagParser, new ConditionEvaluator());
     }
 
     @Test
