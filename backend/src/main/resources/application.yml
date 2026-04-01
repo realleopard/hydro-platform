@@ -11,14 +11,14 @@ spring:
     name: test-project-backend
   profiles:
     active: dev
-  
+
   # 数据源配置 (PostgreSQL)
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/hydro_platform?currentSchema=public
-    username: hydro
-    password: hydro123
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/hydro_platform?currentSchema=public}
+    username: ${SPRING_DATASOURCE_USERNAME:hydro}
+    password: ${SPRING_DATASOURCE_PASSWORD:hydro123}
     hikari:
       minimum-idle: 5
       maximum-pool-size: 20
@@ -28,11 +28,11 @@ spring:
       max-lifetime: 1800000
       connection-timeout: 30000
       connection-test-query: SELECT 1
-  
+
   # Redis 配置
   redis:
-    host: localhost
-    port: 6379
+    host: ${SPRING_REDIS_HOST:localhost}
+    port: ${SPRING_REDIS_PORT:6379}
     database: 0
     timeout: 10s
     lettuce:
@@ -64,77 +64,8 @@ mybatis-plus:
 
 # JWT 配置
 jwt:
-  secret: hydro-platform-jwt-secret-key-must-be-32-bytes-long
-  expiration: 86400000
-
-# 日志配置
-logging:
-  level:
-    com.example.testproject: debug
-    com.baomidou.mybatisplus: debug
-
-# 消息队列配置 (RabbitMQ)
-rabbitmq:
-  host: ${RABBITMQ_HOST:localhost}
-  port: ${RABBITMQ_PORT:5672}
-  username: ${RABBITMQ_USERNAME:hydro}
-  password: ${RABBITMQ_PASSWORD:hydro123}
-  virtual-host: ${RABBITMQ_VHOST:watershed}
-  connection-timeout: 10000
-  requested-heartbeat: 30
-  publisher-confirm-type: correlated
-  publisher-returns: true
-  listener:
-    simple:
-      acknowledge-mode: manual
-      prefetch-count: 10
-      concurrency: 5
-      max-concurrency: 20
-      default-requeue-rejected: false
-  queues:
-    task-queue: task.queue
-    task-dlq: task.dlq
-    notification-queue: notification.queue
-    model-validation-queue: model.validation.queue
-  exchanges:
-    task-exchange: task.exchange
-    notification-exchange: notification.exchange
-    model-exchange: model.exchange
-
-# Docker 配置
-docker:
-  # Docker Daemon 地址
-  # Linux: unix:///var/run/docker.sock
-  # Windows: tcp://localhost:2375
-  # Mac: unix:///var/run/docker.sock
-  host: unix:///var/run/docker.sock
-
-  # TLS 验证（远程连接时启用）
-  tls:
-    verify: false
-    cert:
-      path: ""
-
-  # Docker 配置文件路径
-  config: ""
-
-  # Docker API 版本
-  api:
-    version: "1.43"
-
-  # 镜像仓库配置（私有仓库）
-  registry:
-    url: ""
-    username: ""
-    password: ""
-
-  # 拉取镜像超时时间（秒）
-  pull:
-    timeout: 300
-
-  # 容器执行超时时间（秒）
-  container:
-    timeout: 3600
+  secret: ${JWT_SECRET:hydro-platform-jwt-secret-key-must-be-32-bytes-long}
+  expiration: ${JWT_EXPIRATION:86400000}
 
 # Actuator 配置 (监控)
 management:
@@ -145,7 +76,7 @@ management:
       base-path: /actuator
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
       probes:
         enabled: true
     metrics:
@@ -158,4 +89,3 @@ management:
     export:
       prometheus:
         enabled: true
-

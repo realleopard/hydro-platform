@@ -1,0 +1,27 @@
+# 开发环境配置
+spring:
+  # RabbitMQ
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: hydro
+    password: hydro123
+    virtual-host: watershed
+
+# 日志级别
+logging:
+  level:
+    com.example.testproject: debug
+    com.baomidou.mybatisplus: debug
+
+# Docker 配置 (本地)
+docker:
+  host: unix:///var/run/docker.sock
+  tls:
+    verify: false
+  api:
+    version: "1.43"
+  pull:
+    timeout: 300
+  container:
+    timeout: 3600

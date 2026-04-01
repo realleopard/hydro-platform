@@ -1,0 +1,73 @@
+# 生产环境配置
+spring:
+  # 数据源 - 生产环境使用更高的连接池配置
+  datasource:
+    hikari:
+      minimum-idle: 10
+      maximum-pool-size: 50
+      idle-timeout: 60000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  # Redis - 生产环境连接池配置
+  redis:
+    lettuce:
+      pool:
+        min-idle: 4
+        max-idle: 16
+        max-active: 32
+        max-wait: 3000ms
+
+  # RabbitMQ
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: watershed
+    connection-timeout: 10000
+    requested-heartbeat: 60
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch-count: 20
+        concurrency: 10
+        max-concurrency: 50
+        default-requeue-rejected: false
+
+# 日志级别 - 生产环境最小化
+logging:
+  level:
+    com.example.testproject: warn
+    com.baomidou.mybatisplus: warn
+    root: warn
+
+# Docker 配置 (生产集群)
+docker:
+  host: ${DOCKER_HOST:tcp://docker-prod:2376}
+  tls:
+    verify: true
+    cert:
+      path: ${DOCKER_CERT_PATH:/etc/docker/certs}
+  api:
+    version: "1.43"
+  registry:
+    url: ${DOCKER_REGISTRY}
+    username: ${DOCKER_REGISTRY_USERNAME}
+    password: ${DOCKER_REGISTRY_PASSWORD}
+  pull:
+    timeout: 600
+  container:
+    timeout: 14400
+
+# 生产环境 Actuator - 限制暴露
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never

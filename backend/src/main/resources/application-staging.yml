@@ -1,0 +1,44 @@
+# 预发布环境配置
+spring:
+  # RabbitMQ
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq-staging}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: watershed
+    connection-timeout: 10000
+    requested-heartbeat: 30
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch-count: 10
+        concurrency: 5
+        max-concurrency: 20
+        default-requeue-rejected: false
+
+# 日志级别
+logging:
+  level:
+    com.example.testproject: info
+    com.baomidou.mybatisplus: warn
+
+# Docker 配置 (远程)
+docker:
+  host: ${DOCKER_HOST:tcp://docker-staging:2376}
+  tls:
+    verify: true
+    cert:
+      path: ${DOCKER_CERT_PATH:/etc/docker/certs}
+  api:
+    version: "1.43"
+  registry:
+    url: ${DOCKER_REGISTRY:registry-staging.internal/hydro}
+    username: ${DOCKER_REGISTRY_USERNAME}
+    password: ${DOCKER_REGISTRY_PASSWORD}
+  pull:
+    timeout: 300
+  container:
+    timeout: 7200
