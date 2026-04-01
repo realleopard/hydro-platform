@@ -127,7 +127,9 @@ class WorkflowServiceImplTest {
     void testRunWorkflow_NotFound() {
         doReturn(null).when(workflowService).getById(workflowId);
 
-        workflowService.runWorkflow(workflowId, UUID.randomUUID());
+        assertThrows(IllegalArgumentException.class, () -> {
+            workflowService.runWorkflow(workflowId, UUID.randomUUID());
+        });
 
         verify(workflowService, never()).updateById(any(Workflow.class));
     }
