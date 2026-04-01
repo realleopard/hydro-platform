@@ -42,3 +42,7 @@ docker:
     timeout: 300
   container:
     timeout: 7200
+
+# 任务调度器
+task-scheduler:
+  pool-size: 20

@@ -17,6 +17,10 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.testproject.mapper.WorkflowMapper;
+import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Value;
+
 import java.io.File;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -32,6 +36,7 @@ public class TaskScheduler {
 
     private final TaskMapper taskMapper;
     private final TaskNodeMapper taskNodeMapper;
+    private final WorkflowMapper workflowMapper;
     private final DagParser dagParser;
     private final DependencyResolver dependencyResolver;
     private final TaskProgressPublisher progressPublisher;
@@ -51,22 +56,25 @@ public class TaskScheduler {
 
     public TaskScheduler(TaskMapper taskMapper,
                          TaskNodeMapper taskNodeMapper,
+                         WorkflowMapper workflowMapper,
                          DagParser dagParser,
                          DependencyResolver dependencyResolver,
                          TaskProgressPublisher progressPublisher,
                          DockerExecutor dockerExecutor,
                          ModelService modelService,
-                         ObjectMapper objectMapper) {
+                         ObjectMapper objectMapper,
+                         @Value("${task-scheduler.pool-size:10}") int poolSize) {
         this.taskMapper = taskMapper;
         this.taskNodeMapper = taskNodeMapper;
+        this.workflowMapper = workflowMapper;
         this.dagParser = dagParser;
         this.dependencyResolver = dependencyResolver;
         this.progressPublisher = progressPublisher;
         this.dockerExecutor = dockerExecutor;
         this.modelService = modelService;
         this.objectMapper = objectMapper;
-        // 创建线程池，可根据需要配置
-        this.executorService = Executors.newFixedThreadPool(10);
+        this.executorService = Executors.newFixedThreadPool(poolSize);
+        log.info("任务调度器初始化完成，线程池大小: {}", poolSize);
     }
 
     /**
@@ -597,10 +605,15 @@ public class TaskScheduler {
         log.info("任务已重试: oldTaskId={}, newTaskId={}, retryCount={}",
                 taskId, newTask.getId(), retryCount + 1);
 
-        // 异步执行
-        Workflow workflow = new Workflow();
-        workflow.setId(oldTask.getWorkflowId());
-        // 这里需要重新获取工作流定义
+        // 重新获取工作流定义并异步执行
+        Workflow workflow = workflowMapper.selectById(oldTask.getWorkflowId());
+        if (workflow != null) {
+            WorkflowDefinition definition = dagParser.parse(workflow.getDefinition());
+            executeTaskAsync(newTask, definition);
+        } else {
+            log.error("重试失败，工作流不存在: workflowId={}", oldTask.getWorkflowId());
+            updateTaskStatus(newTask.getId(), TaskStatus.FAILED, 0, "工作流不存在");
+        }
 
         return newTask;
     }
@@ -661,7 +674,31 @@ public class TaskScheduler {
      */
     public void scheduleTask(TaskMessage message) {
         log.info("调度任务: taskId={}", message.getTaskId());
-        // TODO: 实现从消息队列接收任务的调度逻辑
+
+        Task task = taskMapper.selectById(message.getTaskId());
+        if (task == null) {
+            log.error("调度失败，任务不存在: taskId={}", message.getTaskId());
+            return;
+        }
+
+        Workflow workflow = workflowMapper.selectById(task.getWorkflowId());
+        if (workflow == null) {
+            log.error("调度失败，工作流不存在: workflowId={}", task.getWorkflowId());
+            updateTaskStatus(task.getId(), TaskStatus.FAILED, 0, "工作流不存在");
+            return;
+        }
+
+        WorkflowDefinition definition = dagParser.parse(workflow.getDefinition());
+        DagParser.ValidationResult validation = dagParser.validate(definition);
+
+        if (!validation.isValid()) {
+            log.error("调度失败，工作流定义无效: taskId={}, error={}",
+                    task.getId(), validation.getErrorMessage());
+            updateTaskStatus(task.getId(), TaskStatus.FAILED, 0, validation.getErrorMessage());
+            return;
+        }
+
+        executeTaskAsync(task, definition);
     }
 
     /**
@@ -669,7 +706,15 @@ public class TaskScheduler {
      */
     public void scheduleAnalysis(TaskMessage message) {
         log.info("调度分析任务: taskId={}", message.getTaskId());
-        // TODO: 实现分析任务的调度逻辑
+
+        Task task = taskMapper.selectById(message.getTaskId());
+        if (task == null) {
+            log.error("调度失败，任务不存在: taskId={}", message.getTaskId());
+            return;
+        }
+
+        // 分析任务使用相同的工作流执行路径
+        scheduleTask(message);
     }
 
     /**
@@ -677,12 +722,21 @@ public class TaskScheduler {
      */
     public void scheduleValidation(TaskMessage message) {
         log.info("调度验证任务: taskId={}", message.getTaskId());
-        // TODO: 实现验证任务的调度逻辑
+
+        Task task = taskMapper.selectById(message.getTaskId());
+        if (task == null) {
+            log.error("调度失败，任务不存在: taskId={}", message.getTaskId());
+            return;
+        }
+
+        // 验证任务使用相同的工作流执行路径
+        scheduleTask(message);
     }
 
     /**
-     * 关闭调度器
+     * 关闭调度器（Spring 容器销毁时自动调用）
      */
+    @PreDestroy
     public void shutdown() {
         log.info("关闭任务调度器...");
 

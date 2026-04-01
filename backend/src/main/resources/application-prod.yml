@@ -62,6 +62,10 @@ docker:
   container:
     timeout: 14400
 
+# 任务调度器
+task-scheduler:
+  pool-size: 50
+
 # 生产环境 Actuator - 限制暴露
 management:
   endpoints:
