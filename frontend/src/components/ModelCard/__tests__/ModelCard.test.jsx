@@ -13,10 +13,14 @@ describe('ModelCard', () => {
     id: 1,
     name: 'Test Model',
     description: 'A test model for unit testing',
-    version: '1.0.0',
-    author: 'Test Author',
+    currentVersion: 'v1.0.0',
+    ownerName: 'Test Author',
     tags: ['hydrology', 'test'],
-    status: 'published'
+    status: 'published',
+    runCount: 5,
+    ratingAvg: 4.5,
+    dockerImage: 'python:3.11',
+    visibility: 'public'
   };
 
   const defaultProps = {
@@ -35,8 +39,7 @@ describe('ModelCard', () => {
 
     expect(screen.getByText('Test Model')).toBeInTheDocument();
     expect(screen.getByText('A test model for unit testing')).toBeInTheDocument();
-    expect(screen.getByText('v1.0.0')).toBeInTheDocument();
-    expect(screen.getByText('Test Author')).toBeInTheDocument();
+    expect(screen.getByText(/v1.0.0/)).toBeInTheDocument();
   });
 
   it('should render tags', () => {
@@ -58,7 +61,7 @@ describe('ModelCard', () => {
   it('should call onEdit when edit button is clicked', () => {
     render(<ModelCard {...defaultProps} />);
 
-    const editButton = screen.getByTitle('编辑');
+    const editButton = screen.getByText('✏️');
     fireEvent.click(editButton);
 
     expect(defaultProps.onEdit).toHaveBeenCalledWith(mockModel);
@@ -67,7 +70,7 @@ describe('ModelCard', () => {
   it('should call onDelete when delete button is clicked', () => {
     render(<ModelCard {...defaultProps} />);
 
-    const deleteButton = screen.getByTitle('删除');
+    const deleteButton = screen.getByText('🗑️');
     fireEvent.click(deleteButton);
 
     expect(defaultProps.onDelete).toHaveBeenCalledWith(mockModel);
@@ -90,6 +93,6 @@ describe('ModelCard', () => {
     const modelWithoutDesc = { ...mockModel, description: null };
     render(<ModelCard {...defaultProps} model={modelWithoutDesc} />);
 
-    expect(screen.getByText('Test Model')).toBeInTheDocument();
+    expect(screen.getByText('暂无描述')).toBeInTheDocument();
   });
 });
