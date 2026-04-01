@@ -361,7 +361,7 @@ const TaskList = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => navigate('/workflows')}
+            onClick={() => navigate('/workflows?intent=run')}
           >
             新建任务
           </Button>
@@ -413,7 +413,7 @@ const TaskList = () => {
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
-                onClick={() => navigate('/workflows')}
+                onClick={() => navigate('/workflows?intent=run')}
               >
                 新建任务
               </Button>

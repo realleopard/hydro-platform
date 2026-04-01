@@ -30,8 +30,9 @@ import {
   ShareAltOutlined,
   BranchesOutlined
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { workflowService } from '../../services/workflowService';
+import { taskService } from '../../services/taskService';
 import styles from './WorkflowList.module.css';
 
 const { Search } = Input;
@@ -39,6 +40,8 @@ const { Title, Text } = Typography;
 
 const WorkflowList = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isRunMode = searchParams.get('intent') === 'run';
   const [workflows, setWorkflows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -114,13 +117,17 @@ const WorkflowList = () => {
     }
   };
 
-  // 运行工作流
-  const handleRun = async (id) => {
+  // 运行工作流（创建任务）
+  const handleRun = async (record) => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      message.success('工作流开始运行');
+      const result = await taskService.createTask({
+        workflowId: record.id,
+        inputs: '{}'
+      });
+      message.success('任务已创建');
+      navigate(`/tasks/${result.id}`);
     } catch (error) {
-      message.error('运行失败');
+      message.error('创建任务失败: ' + (error.message || '请稍后重试'));
     }
   };
 
@@ -238,56 +245,69 @@ const WorkflowList = () => {
       key: 'action',
       width: 240,
       fixed: 'right',
-      render: (_, record) => (
-        <Space size="small">
-          <Tooltip title="查看详情">
+      render: (_, record) => {
+        if (isRunMode) {
+          return (
             <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => navigate(`/workflows/${record.id}`)}
-            />
-          </Tooltip>
-          <Tooltip title="编辑">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => navigate(`/workflows/${record.id}/edit`)}
-            />
-          </Tooltip>
-          <Tooltip title="运行">
-            <Button
-              type="text"
+              type="primary"
               icon={<PlayCircleOutlined />}
-              onClick={() => handleRun(record.id)}
-            />
-          </Tooltip>
-          <Tooltip title="克隆">
-            <Button
-              type="text"
-              icon={<CopyOutlined />}
-              onClick={() => handleClone(record)}
-            />
-          </Tooltip>
-          <Tooltip title="导出">
-            <Button
-              type="text"
-              icon={<ExportOutlined />}
-              onClick={() => handleExport(record)}
-            />
-          </Tooltip>
-          <Popconfirm
-            title="确认删除"
-            description={`确定要删除工作流 "${record.name}" 吗？`}
-            onConfirm={() => handleDelete(record.id)}
-            okText="确定"
-            cancelText="取消"
-          >
-            <Tooltip title="删除">
-              <Button type="text" danger icon={<DeleteOutlined />} />
+              onClick={() => handleRun(record)}
+            >
+              运行
+            </Button>
+          );
+        }
+        return (
+          <Space size="small">
+            <Tooltip title="查看详情">
+              <Button
+                type="text"
+                icon={<EyeOutlined />}
+                onClick={() => navigate(`/workflows/${record.id}`)}
+              />
             </Tooltip>
-          </Popconfirm>
-        </Space>
-      )
+            <Tooltip title="编辑">
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                onClick={() => navigate(`/workflows/${record.id}/edit`)}
+              />
+            </Tooltip>
+            <Tooltip title="运行">
+              <Button
+                type="text"
+                icon={<PlayCircleOutlined />}
+                onClick={() => handleRun(record)}
+              />
+            </Tooltip>
+            <Tooltip title="克隆">
+              <Button
+                type="text"
+                icon={<CopyOutlined />}
+                onClick={() => handleClone(record)}
+              />
+            </Tooltip>
+            <Tooltip title="导出">
+              <Button
+                type="text"
+                icon={<ExportOutlined />}
+                onClick={() => handleExport(record)}
+              />
+            </Tooltip>
+            <Popconfirm
+              title="确认删除"
+              description={`确定要删除工作流 "${record.name}" 吗？`}
+              onConfirm={() => handleDelete(record.id)}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Tooltip title="删除">
+                <Button type="text" danger icon={<DeleteOutlined />} />
+              </Tooltip>
+            </Popconfirm>
+          </Space>
+        );
+      }
     }
   ];
 
@@ -308,24 +328,33 @@ const WorkflowList = () => {
           <Col>
             <Title level={4} className={styles.pageTitle}>
               <BranchesOutlined style={{ marginRight: 8 }} />
-              工作流编排
+              {isRunMode ? '选择工作流运行任务' : '工作流编排'}
             </Title>
           </Col>
           <Col>
             <Space>
-              <Button
-                icon={<ShareAltOutlined />}
-                onClick={() => navigate('/workflows/public')}
-              >
-                公开工作流
-              </Button>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => navigate('/workflows/create')}
-              >
-                创建工作流
-              </Button>
+              {isRunMode && (
+                <Button onClick={() => navigate('/tasks')}>
+                  返回任务列表
+                </Button>
+              )}
+              {!isRunMode && (
+                <Button
+                  icon={<ShareAltOutlined />}
+                  onClick={() => navigate('/workflows/public')}
+                >
+                  公开工作流
+                </Button>
+              )}
+              {!isRunMode && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => navigate('/workflows/create')}
+                >
+                  创建工作流
+                </Button>
+              )}
             </Space>
           </Col>
         </Row>
