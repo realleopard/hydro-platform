@@ -1,64 +1,74 @@
 import { useAuthStore } from '../authStore';
-import authService from '../../services/authService';
+import { authService } from '../../services/authService';
 
 // Mock authService
-jest.mock('../../services/authService');
+jest.mock('../../services/authService', () => ({
+  authService: {
+    login: jest.fn(),
+    register: jest.fn(),
+    logout: jest.fn(),
+    getCurrentUser: jest.fn(),
+  },
+}));
 
 describe('AuthStore', () => {
   beforeEach(() => {
-    // Reset store state before each test
     useAuthStore.setState({
       user: null,
+      token: null,
+      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
-      error: null
+      error: null,
     });
     jest.clearAllMocks();
   });
 
   describe('login', () => {
     it('should login successfully', async () => {
-      const credentials = { username: 'test', password: 'password' };
       const mockResponse = {
         accessToken: 'token-123',
-        user: { id: 1, username: 'test' }
+        refreshToken: 'refresh-123',
+        user: { id: 1, username: 'test' },
       };
       authService.login.mockResolvedValueOnce(mockResponse);
 
-      await useAuthStore.getState().login(credentials);
+      const result = await useAuthStore.getState().login('test', 'password');
 
+      expect(result).toBe(true);
       const state = useAuthStore.getState();
       expect(state.user).toEqual(mockResponse.user);
+      expect(state.token).toBe('token-123');
       expect(state.isAuthenticated).toBe(true);
       expect(state.error).toBeNull();
     });
 
     it('should handle login failure', async () => {
-      const credentials = { username: 'test', password: 'wrong' };
-      const error = new Error('Invalid credentials');
-      authService.login.mockRejectedValueOnce(error);
+      authService.login.mockRejectedValueOnce(new Error('Invalid credentials'));
 
-      await expect(useAuthStore.getState().login(credentials)).rejects.toThrow();
+      const result = await useAuthStore.getState().login('test', 'wrong');
 
+      expect(result).toBe(false);
       const state = useAuthStore.getState();
       expect(state.isAuthenticated).toBe(false);
-      expect(state.error).toBe(error.message);
+      expect(state.error).toBe('Invalid credentials');
     });
   });
 
   describe('logout', () => {
-    it('should clear user data on logout', async () => {
-      // Set initial authenticated state
+    it('should clear user data on logout', () => {
       useAuthStore.setState({
         user: { id: 1, username: 'test' },
-        isAuthenticated: true
+        token: 'token-123',
+        isAuthenticated: true,
       });
       authService.logout.mockResolvedValueOnce();
 
-      await useAuthStore.getState().logout();
+      useAuthStore.getState().logout();
 
       const state = useAuthStore.getState();
       expect(state.user).toBeNull();
+      expect(state.token).toBeNull();
       expect(state.isAuthenticated).toBe(false);
     });
   });
@@ -73,13 +83,52 @@ describe('AuthStore', () => {
     });
   });
 
-  describe('setUser', () => {
+  describe('updateUser', () => {
     it('should update user data', () => {
-      const user = { id: 1, username: 'test' };
+      useAuthStore.setState({ user: { id: 1, username: 'test' } });
 
-      useAuthStore.getState().setUser(user);
+      useAuthStore.getState().updateUser({ username: 'updated' });
 
-      expect(useAuthStore.getState().user).toEqual(user);
+      expect(useAuthStore.getState().user).toEqual({ id: 1, username: 'updated' });
+    });
+
+    it('should not update when user is null', () => {
+      useAuthStore.setState({ user: null });
+
+      useAuthStore.getState().updateUser({ username: 'updated' });
+
+      expect(useAuthStore.getState().user).toBeNull();
+    });
+  });
+
+  describe('setToken', () => {
+    it('should set token and refreshToken', () => {
+      useAuthStore.getState().setToken('new-token', 'new-refresh');
+
+      const state = useAuthStore.getState();
+      expect(state.token).toBe('new-token');
+      expect(state.refreshToken).toBe('new-refresh');
+    });
+  });
+
+  describe('fetchCurrentUser', () => {
+    it('should fetch and set current user', async () => {
+      const mockUser = { id: 1, username: 'test' };
+      authService.getCurrentUser.mockResolvedValueOnce(mockUser);
+
+      const user = await useAuthStore.getState().fetchCurrentUser();
+
+      expect(user).toEqual(mockUser);
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    });
+
+    it('should handle fetch failure', async () => {
+      authService.getCurrentUser.mockRejectedValueOnce(new Error('Unauthorized'));
+
+      const user = await useAuthStore.getState().fetchCurrentUser();
+
+      expect(user).toBeNull();
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
   });
 });
