@@ -140,9 +140,9 @@ public class DependencyResolver {
      * 依赖越多的节点优先级越高（后续节点需要它的结果）
      */
     private Integer calculatePriority(WorkflowDefinition definition, String nodeId) {
-        int dependentCount = getDependents(definition, nodeId).size();
+        int dependencyCount = getDependencies(definition, nodeId).size();
         // 基础优先级 50，每有一个依赖节点加 10
-        return 50 + dependentCount * 10;
+        return 50 + dependencyCount * 10;
     }
 
     /**

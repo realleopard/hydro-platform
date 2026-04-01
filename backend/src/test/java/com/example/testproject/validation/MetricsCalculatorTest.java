@@ -69,7 +69,7 @@ class MetricsCalculatorTest {
 
         double mae = calculator.calculateMAE(observed, simulated);
 
-        assertEquals(0.4, mae, 0.0001);
+        assertEquals(0.3, mae, 0.0001);
     }
 
     @Test

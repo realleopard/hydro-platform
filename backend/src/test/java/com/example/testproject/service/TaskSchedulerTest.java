@@ -6,11 +6,14 @@ import com.example.testproject.dto.WorkflowNode;
 import com.example.testproject.entity.Task;
 import com.example.testproject.entity.Workflow;
 import com.example.testproject.mapper.TaskMapper;
+import com.example.testproject.mapper.TaskNodeMapper;
+import com.example.testproject.mapper.WorkflowMapper;
+import com.example.testproject.service.ModelService;
+import com.example.testproject.service.TaskProgressPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -29,12 +32,26 @@ class TaskSchedulerTest {
     private TaskMapper taskMapper;
 
     @Mock
+    private TaskNodeMapper taskNodeMapper;
+
+    @Mock
+    private WorkflowMapper workflowMapper;
+
+    @Mock
     private DagParser dagParser;
 
     @Mock
     private DependencyResolver dependencyResolver;
 
-    @InjectMocks
+    @Mock
+    private TaskProgressPublisher progressPublisher;
+
+    @Mock
+    private DockerExecutor dockerExecutor;
+
+    @Mock
+    private ModelService modelService;
+
     private TaskScheduler taskScheduler;
 
     private ObjectMapper objectMapper;
@@ -43,6 +60,10 @@ class TaskSchedulerTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         objectMapper = new ObjectMapper();
+        taskScheduler = new TaskScheduler(
+                taskMapper, taskNodeMapper, workflowMapper,
+                dagParser, dependencyResolver, progressPublisher,
+                dockerExecutor, modelService, objectMapper, 5);
     }
 
     @Test
@@ -95,7 +116,7 @@ class TaskSchedulerTest {
         );
 
         assertTrue(exception.getMessage().contains("工作流定义无效"));
-        verify(taskMapper, never()).insert(any());
+        verify(taskMapper, never()).insert(any(Task.class));
     }
 
     @Test
@@ -127,7 +148,7 @@ class TaskSchedulerTest {
         boolean result = taskScheduler.cancelTask(taskId);
 
         assertFalse(result);
-        verify(taskMapper, never()).updateById(any());
+        verify(taskMapper, never()).updateById(any(Task.class));
     }
 
     @Test

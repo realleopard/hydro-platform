@@ -1,5 +1,6 @@
 package com.example.testproject.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.testproject.entity.Task;
 import com.example.testproject.mapper.TaskMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,7 +9,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import java.time.LocalDateTime;
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,12 +27,15 @@ class TaskServiceImplTest {
     private UUID userId;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         MockitoAnnotations.openMocks(this);
         taskMapper = Mockito.mock(TaskMapper.class);
         taskService = Mockito.spy(new TaskServiceImpl());
-        // Inject mock mapper into ServiceImpl base class
-        taskService.baseMapper = taskMapper;
+
+        // Use reflection to inject mock mapper into ServiceImpl base class
+        Field baseMapperField = taskService.getClass().getSuperclass().getDeclaredField("baseMapper");
+        baseMapperField.setAccessible(true);
+        baseMapperField.set(taskService, taskMapper);
 
         taskId = UUID.randomUUID();
         workflowId = UUID.randomUUID();
@@ -114,7 +118,7 @@ class TaskServiceImplTest {
 
         taskService.updateStatus(taskId, "running");
 
-        verify(taskService, never()).updateById(any());
+        verify(taskService, never()).updateById(any(Task.class));
     }
 
     @Test
@@ -140,7 +144,7 @@ class TaskServiceImplTest {
 
         taskService.updateProgress(taskId, 50);
 
-        verify(taskService, never()).updateById(any());
+        verify(taskService, never()).updateById(any(Task.class));
     }
 
     @Test
@@ -188,7 +192,7 @@ class TaskServiceImplTest {
 
         taskService.cancelTask(taskId);
 
-        verify(taskService, never()).updateById(any());
+        verify(taskService, never()).updateById(any(Task.class));
     }
 
     @Test
@@ -201,7 +205,7 @@ class TaskServiceImplTest {
 
         taskService.cancelTask(taskId);
 
-        verify(taskService, never()).updateById(any());
+        verify(taskService, never()).updateById(any(Task.class));
     }
 
     @Test
@@ -210,7 +214,7 @@ class TaskServiceImplTest {
 
         taskService.cancelTask(taskId);
 
-        verify(taskService, never()).updateById(any());
+        verify(taskService, never()).updateById(any(Task.class));
     }
 
     @Test
@@ -222,22 +226,22 @@ class TaskServiceImplTest {
     @Test
     void testGetWorkflowTasks() {
         List<Task> mockTasks = List.of(new Task(), new Task());
-        doReturn(mockTasks).when(taskService).list(any());
+        doReturn(mockTasks).when(taskService).list(any(LambdaQueryWrapper.class));
 
         List<Task> result = taskService.getWorkflowTasks(workflowId);
 
         assertEquals(2, result.size());
-        verify(taskService).list(any());
+        verify(taskService).list(any(LambdaQueryWrapper.class));
     }
 
     @Test
     void testGetUserTasks() {
         List<Task> mockTasks = List.of(new Task());
-        doReturn(mockTasks).when(taskService).list(any());
+        doReturn(mockTasks).when(taskService).list(any(LambdaQueryWrapper.class));
 
         List<Task> result = taskService.getUserTasks(userId);
 
         assertEquals(1, result.size());
-        verify(taskService).list(any());
+        verify(taskService).list(any(LambdaQueryWrapper.class));
     }
 }

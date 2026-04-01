@@ -135,7 +135,14 @@ public class ModelValidationService {
         return validations.stream()
                 .filter(v -> "completed".equals(v.getStatus()))
                 .max((v1, v2) -> v1.getCompletedAt().compareTo(v2.getCompletedAt()))
-                .map(v -> getValidationMetrics(v.getId()))
+                .map(v -> {
+                    try {
+                        return objectMapper.readValue(v.getMetrics(), ValidationMetrics.class);
+                    } catch (Exception e) {
+                        log.error("解析验证指标失败: validationId={}, error={}", v.getId(), e.getMessage());
+                        return null;
+                    }
+                })
                 .orElse(null);
     }
 

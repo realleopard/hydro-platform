@@ -65,7 +65,7 @@ class PermissionServiceImplTest {
                 "test:code", "测试权限", "Test", "READ", "测试用");
 
         assertEquals(existing, result);
-        verify(permissionMapper, never()).insert(any());
+        verify(permissionMapper, never()).insert(any(Permission.class));
     }
 
     @Test
