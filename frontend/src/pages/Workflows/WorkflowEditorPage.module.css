@@ -1,0 +1,174 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.headerCard {
+  border-radius: 0;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.formCard {
+  border-radius: 0;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 8px 16px;
+}
+
+.form {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.editorContainer {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 320px;
+  border-radius: 0;
+  border-right: 1px solid #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.searchInput {
+  margin-bottom: 8px;
+}
+
+.nodeTypesSection {
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: #8c8c8c;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.nodeTypeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.nodeTypeItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 8px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  cursor: grab;
+  transition: all 0.2s ease;
+  background-color: #fafafa;
+}
+
+.nodeTypeItem:hover {
+  border-color: #1890ff;
+  background-color: #e6f7ff;
+}
+
+.nodeTypeIcon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.modelsSection {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.modelItem {
+  cursor: grab;
+  transition: all 0.2s ease;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  padding: 12px !important;
+}
+
+.modelItem:hover {
+  border-color: #1890ff;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15);
+}
+
+.modelTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.modelDesc {
+  margin-top: 4px;
+}
+
+.modelDescription {
+  font-size: 12px;
+  color: #8c8c8c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin-bottom: 4px;
+}
+
+.modelMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modelAuthor {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.dragIcon {
+  color: #d9d9d9;
+  font-size: 16px;
+}
+
+.modelItem:hover .dragIcon {
+  color: #1890ff;
+}
+
+.canvasWrapper {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}

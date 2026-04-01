@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watershed-frontend
+  namespace: watershed-system
+  labels:
+    app: watershed-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: watershed-frontend
+  template:
+    metadata:
+      labels:
+        app: watershed-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: watershed/frontend:latest
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: REACT_APP_API_URL
+              value: "/api"
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: watershed-frontend
+  namespace: watershed-system
+spec:
+  selector:
+    app: watershed-frontend
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: watershed-ingress
+  namespace: watershed-system
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - host: watershed.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: watershed-frontend
+                port:
+                  number: 3000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: watershed-backend
+                port:
+                  number: 8080

@@ -1,0 +1,128 @@
+{
+  "rabbit_version": "3.12.0",
+  "rabbitmq_version": "3.12.0",
+  "product_name": "RabbitMQ",
+  "product_version": "3.12.0",
+  "users": [
+    {
+      "name": "hydro",
+      "password_hash": "YWRtaW4=",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": "administrator"
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    },
+    {
+      "name": "watershed"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "hydro",
+      "vhost": "watershed",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [
+    {
+      "name": "cluster_name",
+      "value": "rabbit@watershed-rabbitmq"
+    }
+  ],
+  "policies": [],
+  "queues": [
+    {
+      "name": "task.queue",
+      "vhost": "watershed",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-max-priority": 10,
+        "x-message-ttl": 86400000
+      }
+    },
+    {
+      "name": "task.dlq",
+      "vhost": "watershed",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "notification.queue",
+      "vhost": "watershed",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "model.validation.queue",
+      "vhost": "watershed",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "task.exchange",
+      "vhost": "watershed",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "notification.exchange",
+      "vhost": "watershed",
+      "type": "fanout",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "model.exchange",
+      "vhost": "watershed",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "task.exchange",
+      "vhost": "watershed",
+      "destination": "task.queue",
+      "destination_type": "queue",
+      "routing_key": "task.#",
+      "arguments": {}
+    },
+    {
+      "source": "notification.exchange",
+      "vhost": "watershed",
+      "destination": "notification.queue",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {}
+    },
+    {
+      "source": "model.exchange",
+      "vhost": "watershed",
+      "destination": "model.validation.queue",
+      "destination_type": "queue",
+      "routing_key": "validation",
+      "arguments": {}
+    }
+  ]
+}

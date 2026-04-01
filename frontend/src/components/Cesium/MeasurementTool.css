@@ -1,0 +1,140 @@
+.measurement-tool {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 200px;
+  backdrop-filter: blur(4px);
+  color: white;
+  z-index: 100;
+}
+
+.measurement-header {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.measurement-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.measure-btn {
+  flex: 1;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.measure-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.measure-btn.active {
+  background: #1890ff;
+  border-color: #1890ff;
+}
+
+.measurement-results {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.clear-btn {
+  background: rgba(255, 77, 79, 0.8);
+  border: none;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.clear-btn:hover {
+  background: rgba(255, 77, 79, 1);
+}
+
+.measurement-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.measurement-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.measurement-index {
+  color: rgba(255, 255, 255, 0.5);
+  margin-right: 8px;
+  min-width: 24px;
+}
+
+.measurement-type {
+  margin-right: 8px;
+}
+
+.measurement-value {
+  flex: 1;
+  text-align: right;
+  font-weight: 500;
+  color: #1890ff;
+}
+
+.measurement-hint {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(24, 144, 255, 0.2);
+  border-radius: 4px;
+  font-size: 11px;
+  color: #40a9ff;
+  text-align: center;
+}
+
+/* 滚动条样式 */
+.measurement-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.measurement-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+
+.measurement-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.measurement-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

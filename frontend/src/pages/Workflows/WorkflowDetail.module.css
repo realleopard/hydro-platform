@@ -1,0 +1,67 @@
+.container {
+  padding: 24px;
+  background-color: #f5f5f5;
+  min-height: 100%;
+}
+
+.headerCard {
+  margin-bottom: 16px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+}
+
+.titleSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.subtitle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.statsRow {
+  margin-bottom: 16px;
+}
+
+.canvasCard {
+  margin-bottom: 16px;
+}
+
+.canvasContainer {
+  height: 500px;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.historyCard {
+  margin-bottom: 16px;
+}
+
+.descriptionCard {
+  margin-bottom: 16px;
+}

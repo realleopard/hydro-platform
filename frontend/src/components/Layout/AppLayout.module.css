@@ -1,0 +1,77 @@
+.sider {
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+}
+
+.logo {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.logoIcon {
+  font-size: 28px;
+  margin-right: 12px;
+}
+
+.logoText {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.header {
+  background: #fff;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.collapseBtn {
+  font-size: 18px;
+  width: 64px;
+  height: 64px;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+}
+
+.userInfo {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+.userInfo:hover {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.userName {
+  color: rgba(0, 0, 0, 0.85);
+  margin-left: 8px;
+}
+
+.content {
+  margin: 24px;
+  background: #f0f2f5;
+  min-height: 280px;
+}
+
+.footer {
+  text-align: center;
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
+  padding: 16px 50px;
+}

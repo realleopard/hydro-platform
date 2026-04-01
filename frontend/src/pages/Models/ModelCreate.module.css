@@ -1,0 +1,97 @@
+.container {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: calc(100vh - 64px - 48px);
+}
+
+.headerCard {
+  margin-bottom: 16px;
+  padding: 8px 0;
+}
+
+.backButton {
+  padding: 0;
+}
+
+.mainCard {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.pageTitle {
+  text-align: center;
+  margin-bottom: 32px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.steps {
+  margin-bottom: 32px;
+}
+
+.stepContent {
+  min-height: 300px;
+}
+
+.form {
+  margin-top: 24px;
+}
+
+.tooltipIcon {
+  margin-left: 4px;
+  color: #8c8c8c;
+}
+
+.alert {
+  margin-bottom: 24px;
+}
+
+.interfaceCard {
+  margin-bottom: 12px;
+  background: #fafafa;
+}
+
+.addButton {
+  margin-top: 8px;
+}
+
+.stepActions {
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.summary {
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 4px;
+  padding: 16px;
+}
+
+.summary h3 {
+  margin: 0 0 16px;
+  color: #52c41a;
+}
+
+.summaryContent p {
+  margin: 8px 0;
+  color: #262626;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .container {
+    padding: 12px;
+  }
+
+  .mainCard {
+    max-width: 100%;
+  }
+
+  .steps :global(.ant-steps-item-title) {
+    font-size: 12px;
+  }
+}

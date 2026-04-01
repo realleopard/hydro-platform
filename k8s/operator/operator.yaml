@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: watershed-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: watershed-operator
+  namespace: watershed-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: watershed-operator
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "persistentvolumeclaims"]
+    verbs: ["*"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["*"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["*"]
+  - apiGroups: ["watershed.example.com"]
+    resources: ["watershedmodels", "watershedmodels/status", "watershedtasks", "watershedtasks/status"]
+    verbs: ["*"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: watershed-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: watershed-operator
+subjects:
+  - kind: ServiceAccount
+    name: watershed-operator
+    namespace: watershed-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watershed-operator
+  namespace: watershed-system
+  labels:
+    app: watershed-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: watershed-operator
+  template:
+    metadata:
+      labels:
+        app: watershed-operator
+    spec:
+      serviceAccountName: watershed-operator
+      containers:
+        - name: operator
+          image: watershed/operator:latest
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              value: ""
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "watershed-operator"
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"

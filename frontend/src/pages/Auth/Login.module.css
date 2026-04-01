@@ -1,0 +1,138 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+.wave {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  height: 200px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%23ffffff' fill-opacity='0.1' d='M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,112C672,96,768,96,864,112C960,128,1056,160,1152,160C1248,160,1344,128,1392,112L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E") repeat-x;
+  animation: wave 10s linear infinite;
+}
+
+.wave:nth-child(2) {
+  bottom: 10px;
+  opacity: 0.5;
+  animation: wave 15s linear infinite;
+}
+
+.wave:nth-child(3) {
+  bottom: 20px;
+  opacity: 0.3;
+  animation: wave 20s linear infinite;
+}
+
+@keyframes wave {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.loginCard {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  padding: 40px;
+  z-index: 1;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.logo {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.title {
+  margin-bottom: 8px !important;
+  color: #1890ff !important;
+}
+
+.inputIcon {
+  color: #bfbfbf;
+}
+
+.options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.forgotLink {
+  color: #1890ff;
+}
+
+.loginBtn {
+  background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
+  border: none;
+  height: 48px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.loginBtn:hover {
+  background: linear-gradient(135deg, #40a9ff 0%, #5cdbd3 100%);
+}
+
+.register {
+  text-align: center;
+  margin-top: 16px;
+}
+
+.registerLink {
+  color: #1890ff;
+  margin-left: 8px;
+  font-weight: 500;
+}
+
+.footer {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.footerText {
+  font-size: 12px;
+}
+
+.footerLink {
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.footerLink:hover {
+  color: #1890ff;
+}
+
+@media (max-width: 576px) {
+  .loginCard {
+    margin: 16px;
+    padding: 24px;
+  }
+}

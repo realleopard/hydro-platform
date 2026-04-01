@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watershed-backend
+  namespace: watershed-system
+  labels:
+    app: watershed-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: watershed-backend
+  template:
+    metadata:
+      labels:
+        app: watershed-backend
+    spec:
+      containers:
+        - name: backend
+          image: watershed/backend:latest
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "k8s"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: watershed-backend-secrets
+                  key: JWT_SECRET
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+          resources:
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: config-volume
+          configMap:
+            name: watershed-backend-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: watershed-backend
+  namespace: watershed-system
+  labels:
+    app: watershed-backend
+spec:
+  selector:
+    app: watershed-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  type: ClusterIP

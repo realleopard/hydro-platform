@@ -1,0 +1,88 @@
+.container {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: calc(100vh - 64px - 48px);
+}
+
+.headerCard {
+  margin-bottom: 16px;
+}
+
+.pageTitle {
+  margin: 0 !important;
+}
+
+.filterCard {
+  margin-bottom: 16px;
+}
+
+.tableCard {
+  margin-bottom: 16px;
+}
+
+.taskName {
+  font-weight: 500;
+  color: #1890ff;
+  cursor: pointer;
+}
+
+.taskName:hover {
+  text-decoration: underline;
+}
+
+.taskDesc {
+  font-size: 12px;
+  display: block;
+  margin-top: 4px;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progressWrapper {
+  min-width: 150px;
+}
+
+.currentNode {
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.errorMessage {
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.totalBadge {
+  margin: 0 4px;
+}
+
+.totalBadge :global(.ant-badge-count) {
+  background: #1890ff;
+}
+
+.pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .container {
+    padding: 12px;
+  }
+
+  .filterCard :global(.ant-row) {
+    row-gap: 12px;
+  }
+}
