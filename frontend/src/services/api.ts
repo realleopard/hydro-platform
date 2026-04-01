@@ -7,7 +7,7 @@ import axios, {
 import { ApiResponse } from '../types';
 
 // API 基础配置
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.30.107:8080';
 const API_TIMEOUT = 30000;
 
 // 创建 Axios 实例

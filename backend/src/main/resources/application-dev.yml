@@ -1,5 +1,7 @@
 # 开发环境配置
 spring:
+  main:
+    allow-circular-references: true
   # RabbitMQ
   rabbitmq:
     host: localhost

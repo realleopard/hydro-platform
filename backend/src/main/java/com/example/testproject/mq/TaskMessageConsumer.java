@@ -1,5 +1,6 @@
 package com.example.testproject.mq;
 
+import com.example.testproject.config.RabbitMQConfig;
 import com.example.testproject.dto.task.TaskMessage;
 import com.example.testproject.service.TaskScheduler;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +53,7 @@ public class TaskMessageConsumer {
     /**
      * 处理死信队列消息
      */
-    @RabbitListener(queues = "${watershed.mq.task.queue:task.queue}.dlq")
+    @RabbitListener(queues = RabbitMQConfig.TASK_DLQ)
     @RabbitHandler
     public void handleDeadLetterMessage(TaskMessage message) {
         log.error("处理死信队列消息: taskId={}", message.getTaskId());

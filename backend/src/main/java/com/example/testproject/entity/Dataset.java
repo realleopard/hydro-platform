@@ -76,6 +76,6 @@ public class Dataset implements Serializable {
     private LocalDateTime updatedAt;
     
     /** 删除时间 */
-    @TableLogic
+    @TableLogic(value = "NULL", delval = "NOW()")
     private LocalDateTime deletedAt;
 }

@@ -2,10 +2,10 @@ package com.example.testproject.mq;
 
 import com.example.testproject.config.RabbitMQConfig;
 import com.rabbitmq.client.Channel;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
@@ -17,10 +17,10 @@ import java.io.IOException;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class NotificationConsumer {
 
-    private final SimpMessagingTemplate messagingTemplate;
+    @Autowired(required = false)
+    private SimpMessagingTemplate messagingTemplate;
 
     /**
      * 处理通知消息
@@ -33,21 +33,25 @@ public class NotificationConsumer {
             log.info("收到通知消息: notificationId={}, type={}, userId={}",
                     message.getNotificationId(), message.getType(), message.getUserId());
 
-            // 通过 WebSocket 发送通知给指定用户
-            if (message.getUserId() != null) {
-                String destination = "/topic/notifications/" + message.getUserId();
-                messagingTemplate.convertAndSend(destination, message);
-                log.info("WebSocket 通知已发送: userId={}", message.getUserId());
-            }
+            if (messagingTemplate != null) {
+                // 通过 WebSocket 发送通知给指定用户
+                if (message.getUserId() != null) {
+                    String destination = "/topic/notifications/" + message.getUserId();
+                    messagingTemplate.convertAndSend(destination, message);
+                    log.info("WebSocket 通知已发送: userId={}", message.getUserId());
+                }
 
-            // 广播系统通知
-            if (message.getType() == NotificationMessage.NotificationType.SYSTEM_ALERT) {
-                messagingTemplate.convertAndSend("/topic/notifications/system", message);
-            }
+                // 广播系统通知
+                if (message.getType() == NotificationMessage.NotificationType.SYSTEM_ALERT) {
+                    messagingTemplate.convertAndSend("/topic/notifications/system", message);
+                }
 
-            // 发送任务相关通知
-            if (message.getTaskId() != null) {
-                messagingTemplate.convertAndSend("/topic/tasks/" + message.getTaskId() + "/notifications", message);
+                // 发送任务相关通知
+                if (message.getTaskId() != null) {
+                    messagingTemplate.convertAndSend("/topic/tasks/" + message.getTaskId() + "/notifications", message);
+                }
+            } else {
+                log.warn("SimpMessagingTemplate 不可用，跳过 WebSocket 通知推送");
             }
 
             // 确认消息

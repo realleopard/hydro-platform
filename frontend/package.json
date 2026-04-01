@@ -2,6 +2,7 @@
   "name": "hydro-platform-frontend",
   "version": "0.1.0",
   "private": true,
+  "proxy": "http://localhost:8080",
   "dependencies": {
     "@ant-design/icons": "^6.1.1",
     "@reactflow/background": "^11.3.14",

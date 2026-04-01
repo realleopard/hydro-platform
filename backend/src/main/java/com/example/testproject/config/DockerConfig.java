@@ -93,8 +93,7 @@ public class DockerConfig {
             dockerClient.pingCmd().exec();
             log.info("Docker Client 连接成功");
         } catch (Exception e) {
-            log.error("Docker Client 连接失败: {}", e.getMessage());
-            throw new RuntimeException("无法连接到 Docker Daemon", e);
+            log.warn("Docker Client 连接失败: {} -- Docker 功能将不可用", e.getMessage());
         }
 
         return dockerClient;
