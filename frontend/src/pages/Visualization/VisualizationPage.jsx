@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   CesiumViewer,
   LayerManager,
@@ -11,7 +11,106 @@ import {
   ImageryLayer,
   EntityInfoPanel
 } from '../../components/Cesium';
+import {
+  getRivers,
+  getStations,
+  getBasins,
+  getLakes
+} from '../../services/visualizationService';
 import './VisualizationPage.css';
+
+/**
+ * Transform a GeoJSON FeatureCollection into the hydrology data format
+ * expected by HydrologyEntities and other Cesium components.
+ *
+ * GeoJSON coordinates are [longitude, latitude, (height)] arrays.
+ * The components expect objects with { longitude, latitude, height? }.
+ */
+function transformCoordinates(coords) {
+  if (!coords || !Array.isArray(coords)) return [];
+  // coords may be a single [lon, lat, height] or an array of them
+  if (typeof coords[0] === 'number') {
+    return {
+      longitude: coords[0],
+      latitude: coords[1],
+      height: coords[2] || 0
+    };
+  }
+  return coords.map((c) => ({
+    longitude: c[0],
+    latitude: c[1],
+    height: c[2] || 0
+  }));
+}
+
+function geoJsonToHydrologyData(rivers, lakes, stations, basins) {
+  return {
+    rivers: (rivers?.features || []).map((f, i) => {
+      const p = f.properties || {};
+      const isLineString = f.geometry?.type === 'LineString';
+      const coords = isLineString
+        ? f.geometry.coordinates
+        : f.geometry?.coordinates?.[0] || [];
+      return {
+        id: p.id || `river-${i}`,
+        name: p.name || `River ${i + 1}`,
+        coordinates: transformCoordinates(coords),
+        length: p.length || 0,
+        basinArea: p.basinArea || 0,
+        color: p.color || '#0066cc',
+        width: p.width || 3
+      };
+    }),
+    lakes: (lakes?.features || []).map((f, i) => {
+      const p = f.properties || {};
+      const ring =
+        f.geometry?.type === 'Polygon'
+          ? f.geometry.coordinates[0]
+          : f.geometry?.coordinates || [];
+      return {
+        id: p.id || `lake-${i}`,
+        name: p.name || `Lake ${i + 1}`,
+        coordinates: transformCoordinates(ring),
+        area: p.area || 0,
+        capacity: p.capacity || 0,
+        waterLevel: p.waterLevel || 0,
+        color: p.color || '#00aaff'
+      };
+    }),
+    stations: (stations?.features || []).map((f, i) => {
+      const p = f.properties || {};
+      const c = f.geometry?.coordinates || [0, 0, 0];
+      return {
+        id: p.id || `station-${i}`,
+        name: p.name || `Station ${i + 1}`,
+        longitude: c[0],
+        latitude: c[1],
+        height: c[2] || 0,
+        type: p.type || 'flow',
+        value: p.value || 0,
+        establishedDate: p.establishedDate || '',
+        color: p.color
+      };
+    }),
+    basins: (basins?.features || []).map((f, i) => {
+      const p = f.properties || {};
+      const ring =
+        f.geometry?.type === 'Polygon'
+          ? f.geometry.coordinates[0]
+          : f.geometry?.coordinates || [];
+      return {
+        id: p.id || `basin-${i}`,
+        name: p.name || `Basin ${i + 1}`,
+        coordinates: transformCoordinates(ring),
+        area: p.area || 0,
+        outlet: p.outlet || '',
+        avgElevation: p.avgElevation || 0,
+        runoff: p.runoff || 0,
+        color: p.color || '#2d5016'
+      };
+    })
+  };
+}
 
 /**
  * 3D可视化页面 - 集成所有Cesium组件
@@ -25,153 +124,136 @@ const VisualizationPage = () => {
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [showHydrology, setShowHydrology] = useState(true);
 
+  // Dynamic data state
+  const [hydrologyData, setHydrologyData] = useState({
+    rivers: [],
+    lakes: [],
+    stations: [],
+    basins: []
+  });
+  const [rainfallData, setRainfallData] = useState({ stations: [], min: 0, max: 150 });
+  const [riverData, setRiverData] = useState({ points: [], min: 0, max: 0 });
+  const [particlePositions, setParticlePositions] = useState([]);
+  const [spatialLoading, setSpatialLoading] = useState(true);
+  const [spatialError, setSpatialError] = useState(null);
+
   // 示例数据 - 时间范围
   const startTime = new Date('2024-01-01');
   const endTime = new Date('2024-01-31');
 
-  // 示例降雨数据
-  const rainfallData = {
-    stations: [
-      { longitude: 111.5, latitude: 30.5, rainfall: 50 },
-      { longitude: 112.0, latitude: 30.8, rainfall: 80 },
-      { longitude: 111.8, latitude: 30.2, rainfall: 30 },
-      { longitude: 111.2, latitude: 30.6, rainfall: 120 },
-      { longitude: 112.2, latitude: 30.4, rainfall: 65 }
-    ],
-    min: 0,
-    max: 150
-  };
+  // Fetch all spatial data on mount
+  useEffect(() => {
+    let cancelled = false;
 
-  // 示例河流数据
-  const riverData = {
-    points: [
-      { longitude: 111.0, latitude: 30.0, height: 100, value: 100 },
-      { longitude: 111.2, latitude: 30.1, height: 95, value: 150 },
-      { longitude: 111.4, latitude: 30.2, height: 90, value: 200 },
-      { longitude: 111.6, latitude: 30.3, height: 85, value: 180 },
-      { longitude: 111.8, latitude: 30.4, height: 80, value: 220 }
-    ],
-    min: 100,
-    max: 220
-  };
+    async function fetchSpatialData() {
+      setSpatialLoading(true);
+      setSpatialError(null);
 
-  // 粒子位置数据
-  const particlePositions = [
-    { longitude: 111.5, latitude: 30.5, height: 5000 },
-    { longitude: 111.8, latitude: 30.8, height: 5000 },
-    { longitude: 112.0, latitude: 30.3, height: 5000 }
-  ];
+      try {
+        const [riversRes, lakesRes, stationsRes, basinsRes] = await Promise.allSettled([
+          getRivers(),
+          getLakes(),
+          getStations(),
+          getBasins()
+        ]);
 
-  // 水文实体数据
-  const hydrologyData = {
-    rivers: [
-      {
-        id: 'river-001',
-        name: '长江中游段',
-        coordinates: [
-          { longitude: 111.0, latitude: 30.0, height: 50 },
-          { longitude: 111.5, latitude: 30.2, height: 45 },
-          { longitude: 112.0, latitude: 30.4, height: 40 },
-          { longitude: 112.5, latitude: 30.5, height: 35 },
-          { longitude: 113.0, latitude: 30.6, height: 30 }
-        ],
-        length: 245.5,
-        basinArea: 1250.8,
-        color: '#0066cc',
-        width: 4
-      },
-      {
-        id: 'river-002',
-        name: '汉江',
-        coordinates: [
-          { longitude: 110.5, latitude: 30.8, height: 80 },
-          { longitude: 111.0, latitude: 30.6, height: 60 },
-          { longitude: 111.5, latitude: 30.5, height: 45 }
-        ],
-        length: 157.2,
-        basinArea: 890.5,
-        color: '#00aaff',
-        width: 3
+        if (cancelled) return;
+
+        // Extract fulfilled values (or null for rejected)
+        const rivers = riversRes.status === 'fulfilled' ? riversRes.value : null;
+        const lakes = lakesRes.status === 'fulfilled' ? lakesRes.value : null;
+        const stations = stationsRes.status === 'fulfilled' ? stationsRes.value : null;
+        const basins = basinsRes.status === 'fulfilled' ? basinsRes.value : null;
+
+        // Log any failures but continue with partial data
+        if (riversRes.status === 'rejected') {
+          console.warn('Failed to load rivers:', riversRes.reason?.message);
+        }
+        if (lakesRes.status === 'rejected') {
+          console.warn('Failed to load lakes:', lakesRes.reason?.message);
+        }
+        if (stationsRes.status === 'rejected') {
+          console.warn('Failed to load stations:', stationsRes.reason?.message);
+        }
+        if (basinsRes.status === 'rejected') {
+          console.warn('Failed to load basins:', basinsRes.reason?.message);
+        }
+
+        // Transform GeoJSON to component format
+        const hydrology = geoJsonToHydrologyData(rivers, lakes, stations, basins);
+        setHydrologyData(hydrology);
+
+        // Derive rainfall visualization data from stations that carry rainfall info
+        const rainfallStations = hydrology.stations
+          .filter((s) => s.type === 'rainfall' && s.value !== undefined)
+          .map((s) => ({
+            longitude: s.longitude,
+            latitude: s.latitude,
+            rainfall: s.value
+          }));
+        if (rainfallStations.length > 0) {
+          const values = rainfallStations.map((s) => s.rainfall);
+          setRainfallData({
+            stations: rainfallStations,
+            min: Math.min(...values),
+            max: Math.max(...values)
+          });
+        }
+
+        // Derive 1D river visualization data from rivers
+        const allPoints = [];
+        hydrology.rivers.forEach((r) => {
+          r.coordinates.forEach((c) => {
+            allPoints.push({
+              longitude: c.longitude,
+              latitude: c.latitude,
+              height: c.height,
+              value: r.length || 0
+            });
+          });
+        });
+        if (allPoints.length > 0) {
+          const vals = allPoints.map((p) => p.value);
+          setRiverData({ points: allPoints, min: Math.min(...vals), max: Math.max(...vals) });
+        }
+
+        // Particle positions derived from stations (for rainfall particles)
+        if (hydrology.stations.length > 0) {
+          setParticlePositions(
+            hydrology.stations.slice(0, 3).map((s) => ({
+              longitude: s.longitude,
+              latitude: s.latitude,
+              height: 5000
+            }))
+          );
+        }
+
+        // Set error state only if ALL requests failed
+        const allFailed =
+          riversRes.status === 'rejected' &&
+          lakesRes.status === 'rejected' &&
+          stationsRes.status === 'rejected' &&
+          basinsRes.status === 'rejected';
+        if (allFailed) {
+          setSpatialError('Unable to load spatial data from server.');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Unexpected error loading spatial data:', err);
+          setSpatialError('Unexpected error loading spatial data.');
+        }
+      } finally {
+        if (!cancelled) {
+          setSpatialLoading(false);
+        }
       }
-    ],
-    lakes: [
-      {
-        id: 'lake-001',
-        name: '洞庭湖',
-        coordinates: [
-          { longitude: 112.5, latitude: 29.2 },
-          { longitude: 113.0, latitude: 29.2 },
-          { longitude: 113.0, latitude: 29.5 },
-          { longitude: 112.8, latitude: 29.6 },
-          { longitude: 112.5, latitude: 29.5 }
-        ],
-        area: 2625.0,
-        capacity: 220.5,
-        waterLevel: 32.5,
-        color: '#00aaff'
-      }
-    ],
-    stations: [
-      {
-        id: 'station-001',
-        name: '宜昌站',
-        longitude: 111.3,
-        latitude: 30.7,
-        height: 50,
-        type: 'flow',
-        value: 12500,
-        establishedDate: '1950-01-01'
-      },
-      {
-        id: 'station-002',
-        name: '汉口站',
-        longitude: 114.3,
-        latitude: 30.6,
-        height: 25,
-        type: 'flow',
-        value: 18500,
-        establishedDate: '1952-06-15'
-      },
-      {
-        id: 'station-003',
-        name: '武汉雨量站',
-        longitude: 114.3,
-        latitude: 30.5,
-        height: 30,
-        type: 'rainfall',
-        value: 45.5,
-        establishedDate: '1960-03-20'
-      },
-      {
-        id: 'station-004',
-        name: '荆州站',
-        longitude: 112.2,
-        latitude: 30.3,
-        height: 35,
-        type: 'waterLevel',
-        value: 38.2,
-        establishedDate: '1955-08-10'
-      }
-    ],
-    basins: [
-      {
-        id: 'basin-001',
-        name: '长江流域',
-        coordinates: [
-          { longitude: 110.0, latitude: 29.0 },
-          { longitude: 115.0, latitude: 29.0 },
-          { longitude: 115.0, latitude: 31.0 },
-          { longitude: 113.0, latitude: 31.5 },
-          { longitude: 110.0, latitude: 31.0 }
-        ],
-        area: 1800000,
-        outlet: '上海',
-        avgElevation: 450,
-        runoff: 9600,
-        color: '#2d5016'
-      }
-    ]
-  };
+    }
+
+    fetchSpatialData();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleViewerReady = useCallback((v) => {
     setViewer(v);
@@ -234,7 +316,7 @@ const VisualizationPage = () => {
           {viewer && <MeasurementTool viewer={viewer} onMeasurementComplete={handleMeasurementComplete} />}
 
           {/* 水文实体 */}
-          {viewer && showHydrology && (
+          {viewer && showHydrology && !spatialLoading && (
             <HydrologyEntities
               viewer={viewer}
               data={hydrologyData}
@@ -243,7 +325,7 @@ const VisualizationPage = () => {
           )}
 
           {/* 粒子特效 */}
-          {viewer && particleType && (
+          {viewer && particleType && particlePositions.length > 0 && (
             <ParticleSystem
               viewer={viewer}
               type={particleType}
@@ -253,7 +335,7 @@ const VisualizationPage = () => {
           )}
 
           {/* 数据可视化 */}
-          {viewer && activeDataType && (
+          {viewer && activeDataType && !spatialLoading && (
             <DataVisualization
               viewer={viewer}
               type={activeDataType}
@@ -286,6 +368,24 @@ const VisualizationPage = () => {
 
       {/* 侧边控制面板 */}
       <div className="visualization-sidebar">
+        {/* Loading indicator */}
+        {spatialLoading && (
+          <div className="sidebar-section">
+            <div className="status-info" style={{ textAlign: 'center' }}>
+              <p>Loading spatial data...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error notice */}
+        {spatialError && (
+          <div className="sidebar-section">
+            <div className="status-info" style={{ color: '#ff6b6b' }}>
+              <p>{spatialError}</p>
+            </div>
+          </div>
+        )}
+
         <div className="sidebar-section">
           <h3>🗺️ 图层控制</h3>
           <button
@@ -301,6 +401,7 @@ const VisualizationPage = () => {
           <button
             className={`viz-btn ${activeDataType === 'rainfall' ? 'active' : ''}`}
             onClick={toggleRainfall}
+            disabled={spatialLoading}
           >
             {activeDataType === 'rainfall' ? '隐藏降雨' : '显示降雨'}
           </button>
@@ -311,6 +412,7 @@ const VisualizationPage = () => {
           <button
             className={`viz-btn ${activeDataType === 'river1d' ? 'active' : ''}`}
             onClick={toggleRiverData}
+            disabled={spatialLoading}
           >
             {activeDataType === 'river1d' ? '隐藏河网' : '显示河网'}
           </button>
@@ -322,6 +424,7 @@ const VisualizationPage = () => {
             <p><strong>模拟时间:</strong> {currentTime.toLocaleString('zh-CN')}</p>
             <p><strong>播放状态:</strong> {isPlaying ? '▶ 播放中' : '⏸ 已暂停'}</p>
             <p><strong>数据图层:</strong> {activeDataType || '无'}</p>
+            <p><strong>空间数据:</strong> {spatialLoading ? '加载中...' : `${hydrologyData.rivers.length} 河流, ${hydrologyData.stations.length} 测站`}</p>
             {selectedEntity && (
               <p><strong>选中实体:</strong> {selectedEntity.name}</p>
             )}

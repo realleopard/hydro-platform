@@ -1,14 +1,26 @@
 // Cesium 配置
-export const CESIUM_CONFIG = {
-  // ion token - 需要从 https://cesium.com/ion/ 获取
-  // 生产环境应该使用环境变量
-  ionToken: process.env.REACT_APP_CESIUM_ION_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1YjEwNS0zMjUzLTRiMzgtYmQyNi0wMmE0Njc1ZDc3MDIiLCJpZCI6MjQ2MDQ4LCJpYXQiOjE3MjgyMzQ1MjF9.placeholder',
 
-  // 默认视角（中国中部）
+// To obtain a Cesium Ion access token:
+// 1. Sign up at https://cesium.com/ion/
+// 2. Go to "Access Tokens" in your dashboard
+// 3. Create a new token or copy the default one
+// 4. Set it as the REACT_APP_CESIUM_ION_TOKEN environment variable
+//    (e.g. in a .env file at the project root):
+//      REACT_APP_CESIUM_ION_TOKEN=your_token_here
+//
+// The application will still start without a valid token, but terrain
+// and imagery layers that depend on Cesium Ion will be unavailable.
+const ionToken = process.env.REACT_APP_CESIUM_ION_TOKEN || '';
+
+export const CESIUM_CONFIG = {
+  // Cesium Ion access token - required for Cesium World Terrain and Ion imagery
+  ionToken,
+
+  // Default view centered on the Yangtze River middle reach (长江中游)
   defaultView: {
     longitude: 111.5,
     latitude: 30.5,
-    height: 2000000, // 2km
+    height: 2000000, // 2000 km overview
     heading: 0,
     pitch: -45,
     roll: 0
