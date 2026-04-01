@@ -52,8 +52,8 @@ describe('ModelCard', () => {
   it('should call onClick when card is clicked', () => {
     render(<ModelCard {...defaultProps} />);
 
-    const card = screen.getByText('Test Model').closest('.model-card');
-    fireEvent.click(card);
+    // The card div wraps the whole component; clicking the model name triggers the card's onClick
+    fireEvent.click(screen.getByText('Test Model'));
 
     expect(defaultProps.onClick).toHaveBeenCalledWith(mockModel);
   });
