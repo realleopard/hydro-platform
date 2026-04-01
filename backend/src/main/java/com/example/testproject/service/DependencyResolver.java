@@ -15,9 +15,11 @@ import java.util.*;
 public class DependencyResolver {
 
     private final DagParser dagParser;
+    private final ConditionEvaluator conditionEvaluator;
 
-    public DependencyResolver(DagParser dagParser) {
+    public DependencyResolver(DagParser dagParser, ConditionEvaluator conditionEvaluator) {
         this.dagParser = dagParser;
+        this.conditionEvaluator = conditionEvaluator;
     }
 
     /**
@@ -192,6 +194,106 @@ public class DependencyResolver {
     }
 
     /**
+     * 获取满足条件的活跃依赖节点
+     * 检查目标节点的每条入边，返回边条件满足（或无条件）的前驱节点ID列表
+     *
+     * @param definition        工作流定义
+     * @param nodeId            目标节点ID
+     * @param predecessorOutputs 前驱节点的输出数据，key为前驱节点ID，value为该节点输出的JSON解析结果
+     * @return 满足条件的活跃依赖节点ID列表
+     */
+    public List<String> getActiveDependencies(WorkflowDefinition definition,
+                                               String nodeId,
+                                               Map<String, Map<String, Object>> predecessorOutputs) {
+        List<String> activeDeps = new ArrayList<>();
+
+        if (definition.getEdges() == null) {
+            return activeDeps;
+        }
+
+        for (WorkflowEdge edge : definition.getEdges()) {
+            if (!edge.getTarget().equals(nodeId)) {
+                continue;
+            }
+
+            String sourceId = edge.getSource();
+            String condition = edge.getCondition();
+
+            // 无条件的边始终激活
+            if (condition == null || condition.trim().isEmpty()) {
+                activeDeps.add(sourceId);
+                continue;
+            }
+
+            // 获取前驱节点的输出数据作为评估上下文
+            Map<String, Object> context = predecessorOutputs != null
+                    ? predecessorOutputs.getOrDefault(sourceId, new HashMap<>())
+                    : new HashMap<>();
+
+            boolean satisfied = conditionEvaluator.evaluate(condition, context);
+            if (satisfied) {
+                activeDeps.add(sourceId);
+            } else {
+                log.debug("边条件不满足: edgeId={}, source={}, target={}, condition='{}'",
+                        edge.getId(), sourceId, nodeId, condition);
+            }
+        }
+
+        return activeDeps;
+    }
+
+    /**
+     * 判断节点是否应该被跳过
+     * 如果节点的所有入边都有条件且所有条件都不满足，则该节点应被跳过
+     *
+     * @param definition        工作流定义
+     * @param nodeId            节点ID
+     * @param predecessorOutputs 前驱节点的输出数据
+     * @return true 表示节点应该被跳过
+     */
+    public boolean shouldSkipNode(WorkflowDefinition definition,
+                                   String nodeId,
+                                   Map<String, Map<String, Object>> predecessorOutputs) {
+        if (definition.getEdges() == null) {
+            // 没有边，不应跳过（根节点）
+            return false;
+        }
+
+        // 收集所有指向该节点的边
+        List<WorkflowEdge> incomingEdges = new ArrayList<>();
+        for (WorkflowEdge edge : definition.getEdges()) {
+            if (edge.getTarget().equals(nodeId)) {
+                incomingEdges.add(edge);
+            }
+        }
+
+        // 没有入边的根节点不应跳过
+        if (incomingEdges.isEmpty()) {
+            return false;
+        }
+
+        // 检查是否所有入边都有条件且都不满足
+        boolean hasUnconditionalEdge = false;
+        for (WorkflowEdge edge : incomingEdges) {
+            String condition = edge.getCondition();
+            if (condition == null || condition.trim().isEmpty()) {
+                // 存在无条件边，不应跳过
+                hasUnconditionalEdge = true;
+                break;
+            }
+        }
+
+        // 如果有至少一条无条件边，节点不应跳过
+        if (hasUnconditionalEdge) {
+            return false;
+        }
+
+        // 所有入边都有条件，检查是否至少有一条满足
+        List<String> activeDeps = getActiveDependencies(definition, nodeId, predecessorOutputs);
+        return activeDeps.isEmpty();
+    }
+
+    /**
      * 获取数据映射配置
      */
     public Map<String, String> getDataMapping(WorkflowDefinition definition, String sourceNodeId, String targetNodeId) {
@@ -206,5 +308,29 @@ public class DependencyResolver {
         }
 
         return new HashMap<>();
+    }
+
+    /**
+     * 获取目标节点的所有入边数据映射
+     * 合并所有指向目标节点的边上的 dataMapping 配置
+     *
+     * @param definition 工作流定义
+     * @param targetNodeId 目标节点ID
+     * @return 合并后的数据映射，key=target_field, value=source_field 表达式
+     */
+    public Map<String, String> getIncomingDataMappings(WorkflowDefinition definition, String targetNodeId) {
+        Map<String, String> mergedMappings = new HashMap<>();
+
+        if (definition.getEdges() == null) {
+            return mergedMappings;
+        }
+
+        for (WorkflowEdge edge : definition.getEdges()) {
+            if (edge.getTarget().equals(targetNodeId) && edge.getDataMapping() != null) {
+                mergedMappings.putAll(edge.getDataMapping());
+            }
+        }
+
+        return mergedMappings;
     }
 }

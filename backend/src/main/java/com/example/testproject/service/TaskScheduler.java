@@ -22,6 +22,10 @@ import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
@@ -187,8 +191,11 @@ public class TaskScheduler {
 
         // 按阶段执行
         int totalNodes = definition.getNodes().size();
-        int completedNodes = 0;
+        int processedNodes = 0;
         Map<String, ExecutionStatus> nodeStatuses = new ConcurrentHashMap<>();
+
+        // 收集已完成节点的输出数据，用于条件评估
+        Map<String, Map<String, Object>> predecessorOutputs = new ConcurrentHashMap<>();
 
         for (ExecutionPlan.ExecutionStage stage : plan.getStages()) {
             // 检查是否被取消
@@ -202,10 +209,44 @@ public class TaskScheduler {
             log.info("执行任务阶段 {}: taskId={}, nodes={}",
                     stage.getStageIndex(), taskId, stage.getNodeIds());
 
-            // 并行执行该阶段的所有节点
-            List<CompletableFuture<Void>> futures = new ArrayList<>();
+            // 识别本阶段中需要执行和需要跳过的节点
+            List<String> nodesToExecute = new ArrayList<>();
+            List<String> nodesToSkip = new ArrayList<>();
 
             for (String nodeId : stage.getNodeIds()) {
+                if (dependencyResolver.shouldSkipNode(definition, nodeId, predecessorOutputs)) {
+                    nodesToSkip.add(nodeId);
+                } else {
+                    nodesToExecute.add(nodeId);
+                }
+            }
+
+            // 跳过条件不满足的节点
+            for (String nodeId : nodesToSkip) {
+                WorkflowNode node = nodeMap.get(nodeId);
+                String nodeName = node != null ? node.getName() : "节点-" + nodeId;
+
+                log.info("跳过节点（条件分支）: taskId={}, nodeId={}, nodeName={}",
+                        taskId, nodeId, nodeName);
+
+                // 创建 TaskNode 记录并标记为 skipped
+                TaskNode taskNode = createTaskNodeRecord(taskId, nodeId, node);
+                taskNode.setStatus("skipped");
+                taskNode.setProgress(0);
+                taskNode.setStartedAt(LocalDateTime.now());
+                taskNode.setCompletedAt(LocalDateTime.now());
+                taskNodeMapper.updateById(taskNode);
+
+                nodeStatuses.put(nodeId, ExecutionStatus.SKIPPED);
+
+                // 发布节点跳过事件
+                progressPublisher.publishNodeCompleted(taskId, nodeId, nodeName);
+            }
+
+            // 并行执行该阶段的活跃节点
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+            for (String nodeId : nodesToExecute) {
                 WorkflowNode node = nodeMap.get(nodeId);
                 String nodeName = node != null ? node.getName() : "节点-" + nodeId;
 
@@ -213,7 +254,7 @@ public class TaskScheduler {
                 progressPublisher.publishNodeStarted(taskId, nodeId, nodeName);
 
                 CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                    executeNode(taskId, nodeId, node, plan.getNodeConfigs().get(nodeId));
+                    executeNode(taskId, nodeId, node, plan.getNodeConfigs().get(nodeId), definition);
                     nodeStatuses.put(nodeId, ExecutionStatus.COMPLETED);
                     // 发布节点完成事件
                     progressPublisher.publishNodeCompleted(taskId, nodeId, nodeName);
@@ -229,11 +270,11 @@ public class TaskScheduler {
                 futures.add(future);
             }
 
-            // 等待该阶段所有节点完成
+            // 等待该阶段所有活跃节点完成
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
-            // 检查是否有节点失败
-            boolean hasFailure = stage.getNodeIds().stream()
+            // 检查是否有节点失败（跳过的不算失败）
+            boolean hasFailure = nodesToExecute.stream()
                     .anyMatch(nodeId -> nodeStatuses.get(nodeId) == ExecutionStatus.FAILED);
 
             if (hasFailure) {
@@ -244,17 +285,24 @@ public class TaskScheduler {
                 return;
             }
 
+            // 收集已完成节点的输出，用于后续阶段的条件评估
+            collectCompletedNodeOutputs(taskId, nodesToExecute, predecessorOutputs);
+
             // 更新进度
-            completedNodes += stage.getNodeIds().size();
-            int progress = (int) ((completedNodes * 100.0) / totalNodes);
+            processedNodes += stage.getNodeIds().size();
+            int progress = (int) ((processedNodes * 100.0) / totalNodes);
             task.setProgress(progress);
             taskMapper.updateById(task);
 
             // 发布进度更新
             progressPublisher.publishTaskProgress(taskId, progress,
-                    String.format("阶段 %d/%d 完成", stage.getStageIndex() + 1, plan.getStages().size()));
+                    String.format("阶段 %d/%d 完成 (执行: %d, 跳过: %d)",
+                            stage.getStageIndex() + 1, plan.getStages().size(),
+                            nodesToExecute.size(), nodesToSkip.size()));
 
-            log.info("阶段完成: taskId={}, stage={}, progress={}%", taskId, stage.getStageIndex(), progress);
+            log.info("阶段完成: taskId={}, stage={}, progress={}%, executed={}, skipped={}",
+                    taskId, stage.getStageIndex(), progress,
+                    nodesToExecute.size(), nodesToSkip.size());
         }
 
         // 任务完成
@@ -272,10 +320,37 @@ public class TaskScheduler {
     }
 
     /**
+     * 收集已完成节点的输出数据
+     * 从数据库读取节点执行结果的 outputs JSON，用于后续阶段的条件评估
+     *
+     * @param taskId             任务ID
+     * @param completedNodeIds   已完成的节点ID列表
+     * @param predecessorOutputs 输出数据收集容器，key=节点ID，value=输出字段Map
+     */
+    private void collectCompletedNodeOutputs(UUID taskId, List<String> completedNodeIds,
+                                              Map<String, Map<String, Object>> predecessorOutputs) {
+        for (String nodeId : completedNodeIds) {
+            TaskNode taskNode = taskNodeMapper.selectByTaskIdAndNodeId(taskId, nodeId);
+            if (taskNode != null && taskNode.getOutputs() != null) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> outputs = objectMapper.readValue(
+                            taskNode.getOutputs(), Map.class);
+                    predecessorOutputs.put(nodeId, outputs);
+                } catch (Exception e) {
+                    log.warn("解析节点输出失败: taskId={}, nodeId={}, error={}",
+                            taskId, nodeId, e.getMessage());
+                }
+            }
+        }
+    }
+
+    /**
      * 执行单个节点
      */
     private void executeNode(UUID taskId, String nodeId, WorkflowNode node,
-                             ExecutionPlan.NodeExecutionConfig config) {
+                             ExecutionPlan.NodeExecutionConfig config,
+                             WorkflowDefinition definition) {
         log.info("执行节点: taskId={}, nodeId={}, timeout={}",
                 taskId, nodeId, config.getTimeout());
 
@@ -306,11 +381,24 @@ public class TaskScheduler {
             // 解析资源限制
             ResourceLimits resourceLimits = parseResourceLimits(model.getResources());
 
-            // 准备环境变量
-            Map<String, String> envVars = buildEnvironmentVariables(node, taskId, nodeId);
+            // 收集来自前置节点的数据映射
+            Map<String, Object> mappedInputs = collectPredecessorOutputs(
+                    taskId, nodeId, config.getDependencies(), definition);
+
+            // 准备环境变量（包含映射的输入数据）
+            Map<String, String> envVars = buildEnvironmentVariables(
+                    node, taskId, nodeId, mappedInputs);
 
             // 准备卷挂载
             Map<String, String> volumeMounts = buildVolumeMounts(taskId, nodeId, node);
+
+            // 准备输入数据文件（如果有映射的输入数据）
+            if (!mappedInputs.isEmpty()) {
+                prepareInputData(taskId, nodeId, mappedInputs);
+                // 添加输入数据目录的卷挂载
+                String inputDir = System.getProperty("user.dir") + "/data/tasks/" + taskId + "/" + nodeId + "/input";
+                volumeMounts.put(inputDir, "/workspace/input");
+            }
 
             // 准备命令（如果有）
             List<String> command = buildCommand(node);
@@ -378,6 +466,100 @@ public class TaskScheduler {
     }
 
     /**
+     * 收集前置节点的输出数据并应用数据映射
+     *
+     * @param taskId       当前任务ID
+     * @param nodeId       当前节点ID
+     * @param dependencies 前置节点ID列表
+     * @param definition   工作流定义
+     * @return 映射后的输入数据 key-value
+     */
+    private Map<String, Object> collectPredecessorOutputs(UUID taskId, String nodeId,
+                                                          List<String> dependencies,
+                                                          WorkflowDefinition definition) {
+        Map<String, Object> mappedInputs = new HashMap<>();
+
+        if (dependencies == null || dependencies.isEmpty()) {
+            return mappedInputs;
+        }
+
+        // 获取当前节点的所有入边数据映射
+        Map<String, String> dataMappings = dependencyResolver.getIncomingDataMappings(definition, nodeId);
+
+        // 收集所有前置节点的输出
+        Map<String, Map<String, Object>> predecessorOutputs = new HashMap<>();
+        for (String depNodeId : dependencies) {
+            TaskNode depTaskNode = taskNodeMapper.selectByTaskIdAndNodeId(taskId, depNodeId);
+            if (depTaskNode != null && depTaskNode.getOutputs() != null) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> outputs = objectMapper.readValue(
+                            depTaskNode.getOutputs(), Map.class);
+                    predecessorOutputs.put(depNodeId, outputs);
+                } catch (Exception e) {
+                    log.warn("解析前置节点输出失败: taskId={}, depNodeId={}, error={}",
+                            taskId, depNodeId, e.getMessage());
+                }
+            }
+        }
+
+        // 应用数据映射：dataMappings 中 key=target_field, value=source_field 表达式
+        // source_field 表达式格式为 "sourceNodeId.fieldName" 或简单的 "fieldName"
+        for (Map.Entry<String, String> mapping : dataMappings.entrySet()) {
+            String targetField = mapping.getKey();
+            String sourceExpression = mapping.getValue();
+            Object resolvedValue = resolveDataExpression(sourceExpression, predecessorOutputs);
+            if (resolvedValue != null) {
+                mappedInputs.put(targetField, resolvedValue);
+            } else {
+                log.debug("数据映射未找到匹配的值: targetField={}, sourceExpression={}",
+                        targetField, sourceExpression);
+            }
+        }
+
+        log.info("节点数据映射完成: taskId={}, nodeId={}, 映射字段数={}",
+                taskId, nodeId, mappedInputs.size());
+
+        return mappedInputs;
+    }
+
+    /**
+     * 解析数据表达式
+     * 支持格式: "sourceNodeId.fieldName" 或 "fieldName"
+     * 当使用 "fieldName" 格式时，从所有前置节点输出中查找第一个匹配的字段
+     *
+     * @param expression       数据表达式
+     * @param predecessorOutputs 前置节点输出 Map
+     * @return 解析后的值，未找到返回 null
+     */
+    private Object resolveDataExpression(String expression,
+                                         Map<String, Map<String, Object>> predecessorOutputs) {
+        if (expression == null || expression.isEmpty()) {
+            return null;
+        }
+
+        // 尝试 "sourceNodeId.fieldName" 格式
+        int dotIndex = expression.indexOf('.');
+        if (dotIndex > 0 && dotIndex < expression.length() - 1) {
+            String sourceNodeId = expression.substring(0, dotIndex);
+            String fieldName = expression.substring(dotIndex + 1);
+            Map<String, Object> sourceOutputs = predecessorOutputs.get(sourceNodeId);
+            if (sourceOutputs != null) {
+                return sourceOutputs.get(fieldName);
+            }
+        }
+
+        // 简单字段名格式：从所有前置节点中查找
+        for (Map<String, Object> outputs : predecessorOutputs.values()) {
+            if (outputs.containsKey(expression)) {
+                return outputs.get(expression);
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * 创建任务节点执行记录
      */
     private TaskNode createTaskNodeRecord(UUID taskId, String nodeId, WorkflowNode node) {
@@ -427,8 +609,16 @@ public class TaskScheduler {
 
     /**
      * 构建环境变量
+     *
+     * @param node         工作流节点
+     * @param taskId       任务ID
+     * @param nodeId       节点ID
+     * @param mappedInputs 来自前置节点的映射输入数据
+     * @return 环境变量 Map
      */
-    private Map<String, String> buildEnvironmentVariables(WorkflowNode node, UUID taskId, String nodeId) {
+    private Map<String, String> buildEnvironmentVariables(WorkflowNode node, UUID taskId,
+                                                          String nodeId,
+                                                          Map<String, Object> mappedInputs) {
         Map<String, String> envVars = new HashMap<>();
 
         // 系统环境变量
@@ -446,6 +636,16 @@ public class TaskScheduler {
                     envVars.put(entry.getKey(), String.valueOf(entry.getValue()));
                 }
             }
+        }
+
+        // 注入来自前置节点的映射数据作为环境变量（以 INPUT_ 为前缀）
+        if (mappedInputs != null && !mappedInputs.isEmpty()) {
+            for (Map.Entry<String, Object> entry : mappedInputs.entrySet()) {
+                String envKey = "INPUT_" + entry.getKey().toUpperCase().replace('.', '_');
+                envVars.put(envKey, String.valueOf(entry.getValue()));
+            }
+            // 添加标志表明有输入数据文件可用
+            envVars.put("INPUT_DATA_FILE", "/workspace/input/data.json");
         }
 
         return envVars;
@@ -523,6 +723,8 @@ public class TaskScheduler {
 
     /**
      * 构建节点输出
+     * 如果容器 stdout 是有效的 JSON，将其解析并合并到输出中，
+     * 以便容器程序可以输出结构化数据供下游节点使用
      */
     private String buildNodeOutputs(DockerExecutor.ExecutionResult result) {
         Map<String, Object> outputs = new HashMap<>();
@@ -533,11 +735,65 @@ public class TaskScheduler {
         // 输出文件路径（基于卷挂载约定）
         outputs.put("outputPath", "/workspace/output");
 
+        // 尝试将 stdout 解析为 JSON 并合并到输出中
+        String stdout = result.getStdout();
+        if (stdout != null && !stdout.trim().isEmpty()) {
+            try {
+                JsonNode stdoutNode = objectMapper.readTree(stdout.trim());
+                if (stdoutNode.isObject()) {
+                    // stdout 是有效的 JSON 对象，合并其字段
+                    Iterator<Map.Entry<String, JsonNode>> fields = stdoutNode.fields();
+                    while (fields.hasNext()) {
+                        Map.Entry<String, JsonNode> field = fields.next();
+                        outputs.put(field.getKey(), objectMapper.convertValue(field.getValue(), Object.class));
+                    }
+                    log.debug("成功解析 stdout JSON，合并了 {} 个字段", stdoutNode.size());
+                } else if (stdoutNode.isValueNode()) {
+                    // stdout 是单个值，存为 "stdoutValue"
+                    outputs.put("stdoutValue", objectMapper.convertValue(stdoutNode, Object.class));
+                }
+            } catch (Exception e) {
+                // stdout 不是有效 JSON，将其作为原始字符串保存
+                outputs.put("stdout", stdout.trim());
+                log.debug("stdout 不是有效 JSON，保存为原始字符串");
+            }
+        }
+
         try {
             return objectMapper.writeValueAsString(outputs);
         } catch (Exception e) {
             log.warn("构建节点输出 JSON 失败: {}", e.getMessage());
             return "{}";
+        }
+    }
+
+    /**
+     * 准备输入数据文件
+     * 将来自前置节点的映射输入数据写入 JSON 文件，
+     * 挂载到容器的 /workspace/input/data.json 路径
+     *
+     * @param taskId      任务ID
+     * @param nodeId      节点ID
+     * @param inputValues 映射后的输入数据
+     */
+    private void prepareInputData(UUID taskId, String nodeId, Map<String, Object> inputValues) {
+        String inputDir = System.getProperty("user.dir") + "/data/tasks/" + taskId + "/" + nodeId + "/input";
+        try {
+            Path inputDirPath = Paths.get(inputDir);
+            Files.createDirectories(inputDirPath);
+
+            String jsonContent = objectMapper.writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(inputValues);
+
+            Path dataFilePath = inputDirPath.resolve("data.json");
+            Files.writeString(dataFilePath, jsonContent);
+
+            log.info("输入数据文件已准备: taskId={}, nodeId={}, path={}, 字段数={}",
+                    taskId, nodeId, dataFilePath, inputValues.size());
+        } catch (IOException e) {
+            log.error("准备输入数据文件失败: taskId={}, nodeId={}, error={}",
+                    taskId, nodeId, e.getMessage(), e);
+            throw new RuntimeException("准备输入数据文件失败: " + e.getMessage(), e);
         }
     }
 
@@ -791,7 +1047,8 @@ public class TaskScheduler {
         PENDING,    // 待执行
         RUNNING,    // 运行中
         COMPLETED,  // 已完成
-        FAILED      // 失败
+        FAILED,     // 失败
+        SKIPPED     // 条件分支跳过
     }
 
     /**

@@ -9,6 +9,20 @@ import {
 } from '../types';
 
 /**
+ * Derive WebSocket base URL from the API base URL.
+ * Replaces http(s) with ws(s) and strips any trailing path segments.
+ */
+function getWebSocketBaseUrl(): string {
+  const wsUrlFromEnv = process.env.REACT_APP_WS_URL;
+  if (wsUrlFromEnv) {
+    return wsUrlFromEnv;
+  }
+
+  const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://192.168.30.107:8080';
+  return apiBaseUrl.replace(/^http/, 'ws');
+}
+
+/**
  * WebSocket 连接管理器
  */
 class TaskWebSocketManager {
@@ -24,7 +38,7 @@ class TaskWebSocketManager {
    */
   connect(taskId: number): void {
     const token = localStorage.getItem('accessToken');
-    const wsUrl = `${process.env.REACT_APP_WS_URL || 'ws://localhost:8080'}/ws/v1/tasks/${taskId}?token=${token}`;
+    const wsUrl = `${getWebSocketBaseUrl()}/ws/v1/tasks/${taskId}?token=${token}`;
 
     this.ws = new WebSocket(wsUrl);
 
