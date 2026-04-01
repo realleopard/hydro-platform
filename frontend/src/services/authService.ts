@@ -25,11 +25,14 @@ export const authService = {
     );
     const data = response.data.data;
 
-    // 保存 token 到 localStorage
-    localStorage.setItem('accessToken', data.accessToken);
-    localStorage.setItem('refreshToken', data.refreshToken);
+    // 适配后端返回的 token 字段（后端返回 token，前端统一用 accessToken）
+    const accessToken = data.accessToken || data.token;
+    localStorage.setItem('accessToken', accessToken);
+    if (data.refreshToken) {
+      localStorage.setItem('refreshToken', data.refreshToken);
+    }
 
-    return data;
+    return { ...data, accessToken, refreshToken: data.refreshToken || '' };
   },
 
   /**

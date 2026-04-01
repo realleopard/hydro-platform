@@ -52,6 +52,7 @@ export interface LoginRequest {
 export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
+  token?: string; // 后端返回 token 字段的兼容
   user: User;
 }
 
