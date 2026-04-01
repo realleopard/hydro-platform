@@ -29,80 +29,12 @@ import {
   InfoCircleOutlined
 } from '@ant-design/icons';
 import { WorkflowCanvas } from '../../components/WorkflowEditor';
+import { workflowService } from '../../services/workflowService';
+import { modelService } from '../../services/modelService';
 import styles from './WorkflowEditorPage.module.css';
 
 const { TextArea } = Input;
 const { Search } = Input;
-
-// 模拟模型数据
-const mockModels = [
-  {
-    id: '1',
-    name: 'SWAT水文模型',
-    description: '土壤和水评估工具，用于流域尺度的径流模拟',
-    category: 'hydrological',
-    currentVersion: '1.2.0',
-    authorName: '张三'
-  },
-  {
-    id: '2',
-    name: 'HEC-RAS水力学模型',
-    description: '一维/二维水力学计算引擎',
-    category: 'hydraulic',
-    currentVersion: '2.0.1',
-    authorName: '李四'
-  },
-  {
-    id: '3',
-    name: 'WASP水质模型',
-    description: '水质分析和模拟程序',
-    category: 'water_quality',
-    currentVersion: '0.9.0',
-    authorName: '张三'
-  },
-  {
-    id: '4',
-    name: 'MIKE21水动力模型',
-    description: '二维水动力模拟软件',
-    category: 'hydraulic',
-    currentVersion: '3.1.0',
-    authorName: '王五'
-  },
-  {
-    id: '5',
-    name: 'EFDC生态模型',
-    description: '环境流体动力学代码，用于水质和生态模拟',
-    category: 'ecological',
-    currentVersion: '1.0.0',
-    authorName: '李四'
-  }
-];
-
-// 模拟工作流数据
-const mockWorkflows = {
-  '1': {
-    id: '1',
-    name: '流域径流模拟工作流',
-    description: '集成SWAT模型进行流域径流模拟的完整工作流',
-    status: 'published',
-    tags: ['径流模拟', 'SWAT', '流域分析'],
-    definition: {
-      nodes: [
-        { id: 'start', type: 'start', position: { x: 100, y: 200 }, data: { label: '开始' } },
-        { id: 'input1', type: 'input', position: { x: 250, y: 200 }, data: { label: '气象数据输入' } },
-        { id: 'model1', type: 'model', position: { x: 450, y: 200 }, data: { label: 'SWAT模型', model: mockModels[0] } },
-        { id: 'output1', type: 'output', position: { x: 650, y: 200 }, data: { label: '径流结果输出' } },
-        { id: 'end', type: 'end', position: { x: 800, y: 200 }, data: { label: '结束' } }
-      ],
-      edges: [
-        { id: 'e1', source: 'start', target: 'input1', type: 'custom' },
-        { id: 'e2', source: 'input1', target: 'model1', type: 'custom' },
-        { id: 'e3', source: 'model1', target: 'output1', type: 'custom' },
-        { id: 'e4', source: 'output1', target: 'end', type: 'custom' }
-      ]
-    }
-  }
-};
 
 const WorkflowEditorPage = () => {
   const { id } = useParams();
@@ -111,14 +43,30 @@ const WorkflowEditorPage = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [workflow, setWorkflow] = useState(null);
-  const [models, setModels] = useState(mockModels);
+  const [models, setModels] = useState([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
   const [definition, setDefinition] = useState({ nodes: [], edges: [] });
 
   const isEditing = !!id;
 
+  // 加载模型列表
+  const fetchModels = async () => {
+    setModelsLoading(true);
+    try {
+      const result = await modelService.getModels({ page: 1, pageSize: 100 });
+      setModels(result.items || []);
+    } catch (error) {
+      console.error('加载模型列表失败:', error);
+      message.error('加载模型列表失败');
+    } finally {
+      setModelsLoading(false);
+    }
+  };
+
   // 加载工作流数据
   useEffect(() => {
+    fetchModels();
     if (isEditing) {
       fetchWorkflow();
     } else {
@@ -136,14 +84,7 @@ const WorkflowEditorPage = () => {
   const fetchWorkflow = async () => {
     setLoading(true);
     try {
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const data = mockWorkflows[id] || {
-        id,
-        name: '',
-        description: '',
-        definition: { nodes: [], edges: [] }
-      };
+      const data = await workflowService.getWorkflowById(Number(id));
       setWorkflow(data);
       setDefinition(data.definition || { nodes: [], edges: [] });
       form.setFieldsValue({
@@ -184,22 +125,23 @@ const WorkflowEditorPage = () => {
       const values = await form.validateFields();
       setSaving(true);
 
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 500));
-
       const workflowData = {
         ...values,
         definition
       };
 
-      console.log('Saving workflow:', workflowData);
-      message.success(isEditing ? '工作流更新成功' : '工作流创建成功');
-
-      if (!isEditing) {
+      if (isEditing) {
+        await workflowService.updateWorkflow(Number(id), workflowData);
+        message.success('工作流更新成功');
+      } else {
+        await workflowService.createWorkflow(workflowData);
+        message.success('工作流创建成功');
         navigate('/workflows');
       }
     } catch (error) {
-      message.error('保存失败: ' + error.message);
+      if (error.message) {
+        message.error('保存失败: ' + error.message);
+      }
     } finally {
       setSaving(false);
     }

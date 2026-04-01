@@ -2,6 +2,7 @@ package com.example.testproject.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.testproject.common.Result;
+import com.example.testproject.entity.Task;
 import com.example.testproject.entity.Workflow;
 import com.example.testproject.security.CurrentUser;
 import com.example.testproject.service.WorkflowService;
@@ -86,8 +87,8 @@ public class WorkflowController {
      * 运行工作流
      */
     @PostMapping("/{id}/run")
-    public Result<Void> run(@PathVariable UUID id, @CurrentUser UUID userId) {
-        workflowService.runWorkflow(id, userId);
-        return Result.success(null);
+    public Result<Task> run(@PathVariable UUID id, @CurrentUser UUID userId) {
+        Task task = workflowService.runWorkflow(id, userId);
+        return Result.success(task);
     }
 }

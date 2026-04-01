@@ -1,6 +1,7 @@
 package com.example.testproject.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.example.testproject.entity.Task;
 import com.example.testproject.entity.Workflow;
 
 import java.util.List;
@@ -24,7 +25,7 @@ public interface WorkflowService extends IService<Workflow> {
     /**
      * 运行工作流
      */
-    void runWorkflow(UUID workflowId, UUID triggeredBy);
+    Task runWorkflow(UUID workflowId, UUID triggeredBy);
     
     /**
      * 更新最后运行时间

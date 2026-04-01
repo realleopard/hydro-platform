@@ -2,8 +2,10 @@ package com.example.testproject.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.example.testproject.entity.Task;
 import com.example.testproject.entity.Workflow;
 import com.example.testproject.mapper.WorkflowMapper;
+import com.example.testproject.service.TaskScheduler;
 import com.example.testproject.service.WorkflowService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,7 +21,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class WorkflowServiceImpl extends ServiceImpl<WorkflowMapper, Workflow> implements WorkflowService {
-    
+
+    private final TaskScheduler taskScheduler;
+
     @Override
     @Transactional
     public Workflow createWorkflow(Workflow workflow, UUID ownerId) {
@@ -40,13 +44,16 @@ public class WorkflowServiceImpl extends ServiceImpl<WorkflowMapper, Workflow> i
     
     @Override
     @Transactional
-    public void runWorkflow(UUID workflowId, UUID triggeredBy) {
+    public Task runWorkflow(UUID workflowId, UUID triggeredBy) {
         Workflow workflow = getById(workflowId);
-        if (workflow != null) {
-            workflow.setRunCount(workflow.getRunCount() + 1);
-            workflow.setLastRunAt(LocalDateTime.now());
-            updateById(workflow);
+        if (workflow == null) {
+            throw new IllegalArgumentException("工作流不存在: " + workflowId);
         }
+        workflow.setRunCount(workflow.getRunCount() + 1);
+        workflow.setLastRunAt(LocalDateTime.now());
+        updateById(workflow);
+
+        return taskScheduler.submitTask(workflowId, null, triggeredBy);
     }
     
     @Override

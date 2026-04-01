@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { ConfigProvider, Layout, Menu, Badge, Button, Avatar, Dropdown, Space, Typography } from 'antd';
+import { ConfigProvider, Layout, Menu, Badge, Button, Avatar, Dropdown, Space, Typography, Spin, Card, Row, Col, Statistic } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import {
   DashboardOutlined,
@@ -14,10 +14,16 @@ import {
   UserOutlined,
   LogoutOutlined,
   BellOutlined,
+  PlayCircleOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from './stores/authStore';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import Loading from './components/Common/Loading';
+import { taskService } from './services/taskService';
+import { modelService } from './services/modelService';
+import { workflowService } from './services/workflowService';
 import './App.css';
 
 // 懒加载页面组件
@@ -30,6 +36,7 @@ const TaskDetail = React.lazy(() => import('./pages/Tasks/TaskDetail'));
 const WorkflowList = React.lazy(() => import('./pages/Workflows/WorkflowList'));
 const WorkflowDetail = React.lazy(() => import('./pages/Workflows/WorkflowDetail'));
 const WorkflowEditorPage = React.lazy(() => import('./pages/Workflows/WorkflowEditorPage'));
+const VisualizationPage = React.lazy(() => import('./pages/Visualization/VisualizationPage'));
 
 const { Header, Sider, Content, Footer } = Layout;
 const { Text } = Typography;
@@ -168,20 +175,93 @@ const MainLayout = ({ children }) => {
 };
 
 // 控制台首页
-const Dashboard = () => (
-  <div className="dashboard-container">
-    <h1>控制台</h1>
-    <p>欢迎使用流域水系统模拟模型平台</p>
-    <div className="dashboard-stats">
-      <div className="stat-card"><h3>模型数量</h3><div className="stat-value">24</div></div>
-      <div className="stat-card"><h3>运行中任务</h3><div className="stat-value">3</div></div>
-      <div className="stat-card"><h3>工作流</h3><div className="stat-value">12</div></div>
-      <div className="stat-card"><h3>数据集</h3><div className="stat-value">156</div></div>
-    </div>
-  </div>
-);
+const Dashboard = () => {
+  const [stats, setStats] = useState({
+    modelTotal: 0,
+    runningTasks: 0,
+    totalTasks: 0,
+    workflowTotal: 0,
+  });
+  const [loading, setLoading] = useState(true);
 
-const Visualization = () => <div className="placeholder-page"><h1>可视化</h1><p>3D 数字孪生可视化</p></div>;
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setLoading(true);
+      try {
+        const [taskStats, modelResult, workflowResult] = await Promise.all([
+          taskService.getTaskStatistics().catch(() => ({
+            total: 0, pending: 0, running: 0, completed: 0, failed: 0, cancelled: 0,
+          })),
+          modelService.getModels({ page: 1, pageSize: 1 }).catch(() => ({ total: 0 })),
+          workflowService.getWorkflows({ page: 1, pageSize: 1 }).catch(() => ({ total: 0 })),
+        ]);
+        setStats({
+          modelTotal: modelResult.total || 0,
+          runningTasks: taskStats.running || 0,
+          totalTasks: taskStats.total || 0,
+          workflowTotal: workflowResult.total || 0,
+        });
+      } catch (error) {
+        console.error('Failed to load dashboard stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);
+
+  return (
+    <div className="dashboard-container">
+      <h1>控制台</h1>
+      <p>欢迎使用流域水系统模拟模型平台</p>
+      <Spin spinning={loading}>
+        <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="模型数量"
+                value={stats.modelTotal}
+                prefix={<AppstoreOutlined />}
+                valueStyle={{ color: '#1890ff' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="运行中任务"
+                value={stats.runningTasks}
+                prefix={<PlayCircleOutlined />}
+                valueStyle={{ color: '#722ed1' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="工作流"
+                value={stats.workflowTotal}
+                prefix={<NodeIndexOutlined />}
+                valueStyle={{ color: '#52c41a' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="总任务数"
+                value={stats.totalTasks}
+                prefix={<CheckCircleOutlined />}
+                valueStyle={{ color: '#faad14' }}
+              />
+            </Card>
+          </Col>
+        </Row>
+      </Spin>
+    </div>
+  );
+};
+
 const Teaching = () => <div className="placeholder-page"><h1>教学工具</h1><p>虚拟实验室和演示</p></div>;
 const Settings = () => <div className="placeholder-page"><h1>系统设置</h1><p>系统配置和管理</p></div>;
 
@@ -200,7 +280,7 @@ const AppContent = () => {
       <Route path="/workflows/create" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><WorkflowEditorPage /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="/workflows/:id" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><WorkflowDetail /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="/workflows/:id/edit" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><WorkflowEditorPage /></React.Suspense></MainLayout></PrivateRoute>} />
-      <Route path="/visualization" element={<PrivateRoute><MainLayout><Visualization /></MainLayout></PrivateRoute>} />
+      <Route path="/visualization" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><VisualizationPage /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="/teaching" element={<PrivateRoute><MainLayout><Teaching /></MainLayout></PrivateRoute>} />
       <Route path="/settings" element={<PrivateRoute><MainLayout><Settings /></MainLayout></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />

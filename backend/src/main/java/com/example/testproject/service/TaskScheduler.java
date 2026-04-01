@@ -78,6 +78,23 @@ public class TaskScheduler {
     }
 
     /**
+     * 提交任务（通过工作流ID）
+     *
+     * @param workflowId  工作流ID
+     * @param inputs      输入参数
+     * @param triggeredBy 触发用户ID
+     * @return 创建的任务
+     */
+    @Transactional
+    public Task submitTask(UUID workflowId, String inputs, UUID triggeredBy) {
+        Workflow workflow = workflowMapper.selectById(workflowId);
+        if (workflow == null) {
+            throw new IllegalArgumentException("工作流不存在: " + workflowId);
+        }
+        return submitTask(workflow, inputs, triggeredBy);
+    }
+
+    /**
      * 提交任务
      *
      * @param workflow   工作流

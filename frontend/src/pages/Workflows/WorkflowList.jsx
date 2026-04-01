@@ -14,7 +14,8 @@ import {
   Typography,
   Row,
   Col,
-  Empty
+  Empty,
+  Alert
 } from 'antd';
 import {
   PlusOutlined,
@@ -30,133 +31,17 @@ import {
   BranchesOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { workflowService } from '../../services/workflowService';
 import styles from './WorkflowList.module.css';
 
 const { Search } = Input;
 const { Title, Text } = Typography;
 
-// 模拟工作流数据
-const mockWorkflows = [
-  {
-    id: '1',
-    name: '流域径流模拟工作流',
-    description: '集成SWAT模型进行流域径流模拟的完整工作流',
-    status: 'published',
-    isPublic: true,
-    nodeCount: 5,
-    edgeCount: 4,
-    tags: ['径流模拟', 'SWAT', '流域分析'],
-    authorId: 'user1',
-    authorName: '张三',
-    organizationName: '清华大学',
-    createdAt: '2024-01-15T08:00:00Z',
-    updatedAt: '2024-03-20T10:30:00Z',
-    runCount: 45,
-    lastRunAt: '2024-03-19T14:20:00Z',
-    definition: {
-      nodes: [
-        { id: 'start', type: 'start', position: { x: 100, y: 200 } },
-        { id: 'input1', type: 'input', position: { x: 250, y: 200 } },
-        { id: 'model1', type: 'model', position: { x: 450, y: 200 } },
-        { id: 'output1', type: 'output', position: { x: 650, y: 200 } },
-        { id: 'end', type: 'end', position: { x: 800, y: 200 } }
-      ],
-      edges: [
-        { id: 'e1', source: 'start', target: 'input1' },
-        { id: 'e2', source: 'input1', target: 'model1' },
-        { id: 'e3', source: 'model1', target: 'output1' },
-        { id: 'e4', source: 'output1', target: 'end' }
-      ]
-    }
-  },
-  {
-    id: '2',
-    name: '洪水预报工作流',
-    description: '基于HEC-RAS的洪水预报和预警工作流',
-    status: 'published',
-    isPublic: true,
-    nodeCount: 7,
-    edgeCount: 6,
-    tags: ['洪水预报', 'HEC-RAS', '预警'],
-    authorId: 'user2',
-    authorName: '李四',
-    organizationName: '武汉大学',
-    createdAt: '2024-02-01T09:00:00Z',
-    updatedAt: '2024-03-18T16:45:00Z',
-    runCount: 32,
-    lastRunAt: '2024-03-18T10:00:00Z',
-    definition: {
-      nodes: [],
-      edges: []
-    }
-  },
-  {
-    id: '3',
-    name: '水质评估工作流',
-    description: '水质参数计算和评估分析工作流',
-    status: 'draft',
-    isPublic: false,
-    nodeCount: 4,
-    edgeCount: 3,
-    tags: ['水质', 'WASP'],
-    authorId: 'user1',
-    authorName: '张三',
-    organizationName: '清华大学',
-    createdAt: '2024-03-10T11:00:00Z',
-    updatedAt: '2024-03-10T11:00:00Z',
-    runCount: 0,
-    definition: {
-      nodes: [],
-      edges: []
-    }
-  },
-  {
-    id: '4',
-    name: '二维水动力模拟工作流',
-    description: 'MIKE21二维水动力模拟工作流',
-    status: 'published',
-    isPublic: true,
-    nodeCount: 6,
-    edgeCount: 5,
-    tags: ['水动力', 'MIKE21', '二维模拟'],
-    authorId: 'user3',
-    authorName: '王五',
-    organizationName: '河海大学',
-    createdAt: '2024-01-20T10:00:00Z',
-    updatedAt: '2024-03-15T14:20:00Z',
-    runCount: 28,
-    lastRunAt: '2024-03-14T09:30:00Z',
-    definition: {
-      nodes: [],
-      edges: []
-    }
-  },
-  {
-    id: '5',
-    name: '生态流量评估工作流',
-    description: '河流生态流量计算和评估工作流',
-    status: 'archived',
-    isPublic: false,
-    nodeCount: 5,
-    edgeCount: 4,
-    tags: ['生态', 'EFDC', '流量评估'],
-    authorId: 'user2',
-    authorName: '李四',
-    organizationName: '武汉大学',
-    createdAt: '2023-12-01T08:30:00Z',
-    updatedAt: '2024-02-28T09:15:00Z',
-    runCount: 15,
-    definition: {
-      nodes: [],
-      edges: []
-    }
-  }
-];
-
 const WorkflowList = () => {
   const navigate = useNavigate();
   const [workflows, setWorkflows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [total, setTotal] = useState(0);
   const [query, setQuery] = useState({
     page: 1,
@@ -167,29 +52,17 @@ const WorkflowList = () => {
   // 加载工作流列表
   const fetchWorkflows = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // 模拟 API 调用
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      let filtered = [...mockWorkflows];
-
-      // 关键词搜索
-      if (query.keyword) {
-        const keyword = query.keyword.toLowerCase();
-        filtered = filtered.filter(w =>
-          w.name.toLowerCase().includes(keyword) ||
-          w.description?.toLowerCase().includes(keyword) ||
-          w.tags?.some(t => t.toLowerCase().includes(keyword))
-        );
-      }
-
-      setTotal(filtered.length);
-
-      // 分页
-      const start = ((query.page || 1) - 1) * (query.pageSize || 10);
-      const end = start + (query.pageSize || 10);
-      setWorkflows(filtered.slice(start, end));
-    } catch (error) {
+      const result = await workflowService.getWorkflows({
+        page: query.page,
+        pageSize: query.pageSize,
+        search: query.keyword || undefined,
+      });
+      setWorkflows(result.items || []);
+      setTotal(result.total || 0);
+    } catch (err) {
+      setError(err.message || '加载工作流列表失败');
       message.error('加载工作流列表失败');
     } finally {
       setLoading(false);
@@ -222,7 +95,7 @@ const WorkflowList = () => {
   // 删除工作流
   const handleDelete = async (id) => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await workflowService.deleteWorkflow(Number(id));
       message.success('删除成功');
       fetchWorkflows();
     } catch (error) {
@@ -233,7 +106,7 @@ const WorkflowList = () => {
   // 克隆工作流
   const handleClone = async (record) => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await workflowService.cloneWorkflow(Number(record.id));
       message.success(`已克隆工作流 "${record.name}"`);
       fetchWorkflows();
     } catch (error) {
@@ -298,11 +171,14 @@ const WorkflowList = () => {
       dataIndex: 'nodeCount',
       key: 'nodeCount',
       width: 80,
-      render: (count) => (
-        <Tooltip title={`${count} 个节点`}>
-          <span>{count}</span>
-        </Tooltip>
-      )
+      render: (count, record) => {
+        const nodeCount = count || record.definition?.nodes?.length || 0;
+        return (
+          <Tooltip title={`${nodeCount} 个节点`}>
+            <span>{nodeCount}</span>
+          </Tooltip>
+        );
+      }
     },
     {
       title: '标签',
@@ -417,6 +293,16 @@ const WorkflowList = () => {
 
   return (
     <div className={styles.container}>
+      {error && (
+        <Alert
+          message="加载失败"
+          description={error}
+          type="error"
+          closable
+          style={{ marginBottom: 16 }}
+          onClose={() => setError(null)}
+        />
+      )}
       <Card className={styles.headerCard}>
         <Row justify="space-between" align="middle">
           <Col>

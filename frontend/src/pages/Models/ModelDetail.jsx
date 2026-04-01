@@ -127,9 +127,9 @@ const ModelDetail = () => {
     }
   };
 
-  // 运行模型
+  // 运行模型 - navigate to workflow editor to create a workflow using this model
   const handleRun = () => {
-    message.info('运行模型功能开发中');
+    navigate(`/workflows/create?modelId=${id}`);
   };
 
   if (loading) {

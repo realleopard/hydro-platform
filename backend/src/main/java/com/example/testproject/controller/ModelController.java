@@ -9,10 +9,13 @@ import com.example.testproject.security.CurrentUser;
 import com.example.testproject.service.ModelService;
 import com.example.testproject.service.ModelVersionService;
 import com.example.testproject.service.ModelReviewService;
+import com.example.testproject.service.DockerRegistryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -26,6 +29,7 @@ public class ModelController {
     private final ModelService modelService;
     private final ModelVersionService modelVersionService;
     private final ModelReviewService modelReviewService;
+    private final DockerRegistryService dockerRegistryService;
     
     /**
      * 获取模型列表
@@ -156,6 +160,59 @@ public class ModelController {
         return Result.success(null);
     }
     
+    // ==================== 镜像验证 ====================
+
+    /**
+     * 验证模型的 Docker 镜像是否存在于 Registry
+     */
+    @GetMapping("/{id}/validate-image")
+    public Result<Map<String, Object>> validateImage(@PathVariable UUID id) {
+        Model model = modelService.getById(id);
+        if (model == null) {
+            return Result.error("模型不存在");
+        }
+
+        Map<String, Object> validationResult = new HashMap<>();
+        String dockerImage = model.getDockerImage();
+        validationResult.put("modelId", id);
+        validationResult.put("dockerImage", dockerImage);
+
+        if (dockerImage == null || dockerImage.isEmpty()) {
+            validationResult.put("valid", false);
+            validationResult.put("message", "模型未配置 Docker 镜像");
+            return Result.success(validationResult);
+        }
+
+        // 解析镜像名和标签，例如 "hydro-model:v1.0" -> name="hydro-model", tag="v1.0"
+        String imageName;
+        String tag;
+        int colonIndex = dockerImage.lastIndexOf(':');
+        if (colonIndex > 0) {
+            imageName = dockerImage.substring(0, colonIndex);
+            tag = dockerImage.substring(colonIndex + 1);
+        } else {
+            imageName = dockerImage;
+            tag = "latest";
+        }
+        validationResult.put("imageName", imageName);
+        validationResult.put("tag", tag);
+
+        boolean exists = dockerRegistryService.imageExists(imageName, tag);
+        validationResult.put("exists", exists);
+
+        if (exists) {
+            String digest = dockerRegistryService.getImageDigest(imageName, tag);
+            validationResult.put("digest", digest);
+            validationResult.put("valid", true);
+            validationResult.put("message", "镜像验证通过");
+        } else {
+            validationResult.put("valid", false);
+            validationResult.put("message", "镜像在 Registry 中不存在");
+        }
+
+        return Result.success(validationResult);
+    }
+
     // ==================== 评价管理 ====================
     
     /**

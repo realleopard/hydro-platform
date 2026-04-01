@@ -21,6 +21,10 @@ docker:
     verify: false
   api:
     version: "1.43"
+  registry:
+    url: ${DOCKER_REGISTRY_URL:http://localhost:5000}
+    username: ${DOCKER_REGISTRY_USERNAME:}
+    password: ${DOCKER_REGISTRY_PASSWORD:}
   pull:
     timeout: 300
   container:

@@ -8,6 +8,7 @@ import {
   Space,
   Spin,
   message,
+  Popconfirm,
   Timeline,
   Table,
   Badge,
@@ -34,88 +35,28 @@ import {
   ShareAltOutlined
 } from '@ant-design/icons';
 import { WorkflowCanvas } from '../../components/WorkflowEditor';
+import { workflowService } from '../../services/workflowService';
+import { taskService } from '../../services/taskService';
 import styles from './WorkflowDetail.module.css';
-
-// 模拟工作流数据
-const mockWorkflows = {
-  '1': {
-    id: '1',
-    name: '流域径流模拟工作流',
-    description: '集成SWAT模型进行流域径流模拟的完整工作流',
-    status: 'published',
-    isPublic: true,
-    tags: ['径流模拟', 'SWAT', '流域分析'],
-    authorId: 'user1',
-    authorName: '张三',
-    organizationName: '清华大学',
-    createdAt: '2024-01-15T08:00:00Z',
-    updatedAt: '2024-03-20T10:30:00Z',
-    runCount: 45,
-    lastRunAt: '2024-03-19T14:20:00Z',
-    definition: {
-      nodes: [
-        { id: 'start', type: 'start', position: { x: 100, y: 200 }, data: { label: '开始' } },
-        { id: 'input1', type: 'input', position: { x: 250, y: 200 }, data: { label: '气象数据输入' } },
-        { id: 'model1', type: 'model', position: { x: 450, y: 200 }, data: { label: 'SWAT模型', model: { name: 'SWAT水文模型' } } },
-        { id: 'output1', type: 'output', position: { x: 650, y: 200 }, data: { label: '径流结果输出' } },
-        { id: 'end', type: 'end', position: { x: 800, y: 200 }, data: { label: '结束' } }
-      ],
-      edges: [
-        { id: 'e1', source: 'start', target: 'input1', type: 'custom' },
-        { id: 'e2', source: 'input1', target: 'model1', type: 'custom' },
-        { id: 'e3', source: 'model1', target: 'output1', type: 'custom' },
-        { id: 'e4', source: 'output1', target: 'end', type: 'custom' }
-      ]
-    }
-  }
-};
-
-// 模拟执行历史
-const mockExecutionHistory = [
-  {
-    taskId: '101',
-    status: 'completed',
-    startTime: '2024-03-19T14:20:00Z',
-    endTime: '2024-03-19T14:25:30Z',
-    executedBy: '张三',
-    duration: '5分30秒'
-  },
-  {
-    taskId: '98',
-    status: 'completed',
-    startTime: '2024-03-18T09:15:00Z',
-    endTime: '2024-03-18T09:20:15Z',
-    executedBy: '李四',
-    duration: '5分15秒'
-  },
-  {
-    taskId: '95',
-    status: 'failed',
-    startTime: '2024-03-17T16:30:00Z',
-    endTime: '2024-03-17T16:32:00Z',
-    executedBy: '张三',
-    duration: '2分0秒',
-    error: '输入数据格式错误'
-  }
-];
 
 const WorkflowDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [workflow, setWorkflow] = useState(null);
   const [executionHistory, setExecutionHistory] = useState([]);
 
   useEffect(() => {
-    fetchWorkflow();
-    fetchExecutionHistory();
+    if (id) {
+      fetchWorkflow();
+      fetchExecutionHistory();
+    }
   }, [id]);
 
   const fetchWorkflow = async () => {
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const data = mockWorkflows[id];
+      const data = await workflowService.getWorkflowById(Number(id));
       if (data) {
         setWorkflow(data);
       } else {
@@ -124,6 +65,7 @@ const WorkflowDetail = () => {
       }
     } catch (error) {
       message.error('加载工作流失败');
+      navigate('/workflows');
     } finally {
       setLoading(false);
     }
@@ -131,8 +73,8 @@ const WorkflowDetail = () => {
 
   const fetchExecutionHistory = async () => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setExecutionHistory(mockExecutionHistory);
+      const history = await workflowService.getExecutionHistory(Number(id));
+      setExecutionHistory(history || []);
     } catch (error) {
       console.error('加载执行历史失败', error);
     }
@@ -140,16 +82,17 @@ const WorkflowDetail = () => {
 
   const handleRun = async () => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      const task = await taskService.createTask({ workflowId: Number(id) });
       message.success('工作流开始运行');
+      navigate(`/tasks/${task.id}`);
     } catch (error) {
-      message.error('运行失败');
+      message.error('运行失败: ' + (error.message || '请稍后重试'));
     }
   };
 
   const handleClone = async () => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await workflowService.cloneWorkflow(Number(id));
       message.success(`已克隆工作流 "${workflow.name}"`);
     } catch (error) {
       message.error('克隆失败');
@@ -171,7 +114,7 @@ const WorkflowDetail = () => {
 
   const handleDelete = async () => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await workflowService.deleteWorkflow(Number(id));
       message.success('工作流已删除');
       navigate('/workflows');
     } catch (error) {
