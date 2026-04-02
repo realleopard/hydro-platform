@@ -71,6 +71,19 @@ const ModelDetail = () => {
       if (typeof modelData.parameters === 'string') {
         try { modelData.parameters = JSON.parse(modelData.parameters); } catch { modelData.parameters = []; }
       }
+      // 解析 tags: PostgreSQL text 字段可能是 "{a,b,c}" 格式或 JSON 数组字符串
+      if (typeof modelData.tags === 'string') {
+        const raw = modelData.tags.trim();
+        if (raw.startsWith('{') && raw.endsWith('}')) {
+          // PostgreSQL array literal: {a,b,c} -> ["a","b","c"]
+          modelData.tags = raw.slice(1, -1).split(',').map(s => s.trim()).filter(Boolean);
+        } else {
+          try { modelData.tags = JSON.parse(raw); } catch { modelData.tags = []; }
+        }
+      }
+      if (!Array.isArray(modelData.tags)) {
+        modelData.tags = [];
+      }
       // 确保 interfaces 是数组
       if (!Array.isArray(modelData.interfaces)) {
         // 可能是 {input: [...], output: [...]} 格式，展平
