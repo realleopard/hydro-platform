@@ -29,7 +29,9 @@ export interface Model {
 export interface ModelInterface {
   name: string;
   type: string;
+  dataType?: string;  // timeseries, scalar, json 等
   format?: string;
+  description?: string;
   required?: boolean;
 }
 

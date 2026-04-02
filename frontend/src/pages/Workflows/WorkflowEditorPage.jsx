@@ -57,6 +57,9 @@ const toBackendDefinition = (rfDef) => {
     id: e.id,
     source: e.source,
     target: e.target,
+    ...(e.data?.dataMapping && Object.keys(e.data.dataMapping).length > 0
+      ? { dataMapping: e.data.dataMapping }
+      : {}),
   }));
 
   return { nodes, edges };
@@ -82,12 +85,21 @@ const toReactFlowDefinition = (backendDef) => {
     nodes.push({ id: 'end', type: 'end', position: { x: 800, y: 300 }, data: { label: '结束' } });
   }
 
-  const edges = (backendDef?.edges || []).map(e => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    type: 'custom',
-  }));
+  const edges = (backendDef?.edges || []).map(e => {
+    const hasMapping = e.dataMapping && Object.keys(e.dataMapping).length > 0;
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      type: hasMapping ? 'dataFlow' : 'custom',
+      ...(hasMapping ? {
+        data: {
+          dataMapping: e.dataMapping,
+          mapping: Object.entries(e.dataMapping).map(([t, s]) => `${s} → ${t}`).join(', '),
+        },
+      } : {}),
+    };
+  });
 
   return { nodes, edges };
 };
@@ -103,6 +115,12 @@ const WorkflowEditorPage = () => {
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
   const [definition, setDefinition] = useState({ nodes: [], edges: [] });
+  // Keep a ref in sync so page-level save always has latest canvas state
+  const definitionRef = React.useRef(definition);
+  const updateDefinition = (newDef) => {
+    definitionRef.current = newDef;
+    setDefinition(newDef);
+  };
 
   const isEditing = !!id;
 
@@ -127,7 +145,7 @@ const WorkflowEditorPage = () => {
       fetchWorkflow();
     } else {
       // 新建工作流，添加默认的开始和结束节点
-      setDefinition({
+      updateDefinition({
         nodes: [
           { id: 'start', type: 'start', position: { x: 100, y: 300 }, data: { label: '开始' } },
           { id: 'end', type: 'end', position: { x: 800, y: 300 }, data: { label: '结束' } }
@@ -147,7 +165,7 @@ const WorkflowEditorPage = () => {
       if (typeof def === 'string') {
         try { def = JSON.parse(def); } catch { def = { nodes: [], edges: [] }; }
       }
-      setDefinition(toReactFlowDefinition(def || { nodes: [], edges: [] }));
+      updateDefinition(toReactFlowDefinition(def || { nodes: [], edges: [] }));
       form.setFieldsValue({
         name: data.name,
         description: data.description,
@@ -177,7 +195,7 @@ const WorkflowEditorPage = () => {
 
   // 保存工作流定义
   const handleSaveDefinition = async (newDefinition) => {
-    setDefinition(newDefinition);
+    updateDefinition(newDefinition);
   };
 
   // 保存工作流
@@ -186,7 +204,7 @@ const WorkflowEditorPage = () => {
       const values = await form.validateFields();
       setSaving(true);
 
-      const backendDef = toBackendDefinition(definition);
+      const backendDef = toBackendDefinition(definitionRef.current);
       const workflowData = {
         ...values,
         definition: JSON.stringify(backendDef),
@@ -216,7 +234,7 @@ const WorkflowEditorPage = () => {
       if (!isEditing) {
         // 新工作流先保存
         const values = await form.validateFields();
-        const backendDef = toBackendDefinition(definition);
+        const backendDef = toBackendDefinition(definitionRef.current);
         const result = await workflowService.createWorkflow({
           ...values,
           definition: JSON.stringify(backendDef),
@@ -225,7 +243,7 @@ const WorkflowEditorPage = () => {
       } else {
         // 已有工作流先保存更改
         const values = await form.validateFields();
-        const backendDef = toBackendDefinition(definition);
+        const backendDef = toBackendDefinition(definitionRef.current);
         await workflowService.updateWorkflow(id, {
           ...values,
           definition: JSON.stringify(backendDef),
@@ -439,6 +457,7 @@ const WorkflowEditorPage = () => {
               onRun={handleRun}
               onValidate={handleValidate}
               models={models}
+              onDefinitionChange={(def) => { definitionRef.current = def; }}
             />
           </div>
         </div>

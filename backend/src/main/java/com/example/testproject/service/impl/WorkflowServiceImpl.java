@@ -27,6 +27,9 @@ public class WorkflowServiceImpl extends ServiceImpl<WorkflowMapper, Workflow> i
     @Override
     @Transactional
     public Workflow createWorkflow(Workflow workflow, UUID ownerId) {
+        if (workflow.getId() == null) {
+            workflow.setId(UUID.randomUUID());
+        }
         workflow.setOwnerId(ownerId);
         workflow.setStatus("active");
         workflow.setRunCount(0);

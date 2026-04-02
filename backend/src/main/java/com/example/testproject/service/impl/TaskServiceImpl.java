@@ -27,6 +27,9 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @Override
     @Transactional
     public Task createTask(Task task) {
+        if (task.getId() == null) {
+            task.setId(UUID.randomUUID());
+        }
         task.setStatus("pending");
         task.setProgress(0);
         save(task);

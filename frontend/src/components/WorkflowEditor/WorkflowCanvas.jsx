@@ -11,13 +11,15 @@ import ReactFlow, {
   ReactFlowProvider,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { message, Modal, Form, Input, Select, Menu, Dropdown } from 'antd';
+import { message, Modal, Form, Input, Select, Menu, Dropdown, Table, Tag, Tooltip, Space, Button } from 'antd';
 import {
   DeleteOutlined,
   CopyOutlined,
   EditOutlined,
   PlayCircleOutlined,
   EyeOutlined,
+  WarningOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import { nodeTypes } from './NodeTypes';
 import { edgeTypes } from './EdgeTypes';
@@ -30,6 +32,70 @@ const { Option } = Select;
 const initialNodes = [];
 const initialEdges = [];
 
+// 解析模型的接口端口
+const getModelPorts = (modelData) => {
+  if (!modelData?.interfaces) return { inputs: [], outputs: [] };
+  const interfaces = modelData.interfaces;
+  let inputs = [];
+  let outputs = [];
+  if (Array.isArray(interfaces)) {
+    inputs = interfaces.filter(i => i.type === 'input');
+    outputs = interfaces.filter(i => i.type === 'output');
+  } else if (interfaces.inputs || interfaces.outputs) {
+    inputs = (interfaces.inputs || []).map(i => ({ ...i, type: 'input' }));
+    outputs = (interfaces.outputs || []).map(i => ({ ...i, type: 'output' }));
+  }
+  return { inputs, outputs };
+};
+
+// 自动匹配端口：dataType 相同 + 名称相似优先
+const autoMatchPorts = (sourceOutputs, targetInputs) => {
+  const mappings = {};
+  const used = new Set();
+
+  // 第一轮：dataType 和 name 都匹配
+  for (const target of targetInputs) {
+    for (const source of sourceOutputs) {
+      if (used.has(source.name)) continue;
+      if (target.dataType === source.dataType && target.name === source.name) {
+        mappings[target.name] = source.name;
+        used.add(source.name);
+        break;
+      }
+    }
+  }
+
+  // 第二轮：dataType 匹配
+  for (const target of targetInputs) {
+    if (mappings[target.name]) continue;
+    for (const source of sourceOutputs) {
+      if (used.has(source.name)) continue;
+      if (target.dataType === source.dataType) {
+        mappings[target.name] = source.name;
+        used.add(source.name);
+        break;
+      }
+    }
+  }
+
+  // 第三轮：尝试名称相似匹配（忽略大小写和下划线）
+  for (const target of targetInputs) {
+    if (mappings[target.name]) continue;
+    const tName = target.name.toLowerCase().replace(/[_-]/g, '');
+    for (const source of sourceOutputs) {
+      if (used.has(source.name)) continue;
+      const sName = source.name.toLowerCase().replace(/[_-]/g, '');
+      if (tName.includes(sName) || sName.includes(tName)) {
+        mappings[target.name] = source.name;
+        used.add(source.name);
+        break;
+      }
+    }
+  }
+
+  return mappings;
+};
+
 // 画布内容组件
 const CanvasContent = ({
   workflow,
@@ -38,6 +104,7 @@ const CanvasContent = ({
   onValidate,
   models,
   readOnly = false,
+  onDefinitionChange,
 }) => {
   const reactFlowWrapper = useRef(null);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -50,6 +117,14 @@ const CanvasContent = ({
   const [nodeConfigVisible, setNodeConfigVisible] = useState(false);
   const [configForm] = Form.useForm();
 
+  // 数据映射弹窗状态
+  const [mappingModalVisible, setMappingModalVisible] = useState(false);
+  const [mappingSourceNode, setMappingSourceNode] = useState(null);
+  const [mappingTargetNode, setMappingTargetNode] = useState(null);
+  const [pendingConnection, setPendingConnection] = useState(null);
+  const [mappingConfig, setMappingConfig] = useState({}); // { targetPortName: sourcePortName }
+  const [editingEdgeId, setEditingEdgeId] = useState(null);
+
   const { project, fitView, getNodes, getEdges } = useReactFlow();
 
   // 加载工作流数据
@@ -57,10 +132,42 @@ const CanvasContent = ({
     if (workflow?.definition) {
       const { nodes: workflowNodes = [], edges: workflowEdges = [] } = workflow.definition;
       setNodes(workflowNodes);
-      setEdges(workflowEdges);
+      // 恢复 edges 时设置正确的 type 和 data
+      setEdges(workflowEdges.map(e => ({
+        ...e,
+        type: (e.data?.dataMapping && Object.keys(e.data.dataMapping).length > 0) ? 'dataFlow' : 'custom',
+        data: {
+          ...e.data,
+          onDelete: handleDeleteEdge,
+          onEdit: handleEditEdgeMapping,
+        },
+      })));
       setIsDirty(false);
     }
   }, [workflow]);
+
+  // Sync current nodes/edges to parent whenever they change
+  useEffect(() => {
+    if (onDefinitionChange && nodes.length > 0) {
+      onDefinitionChange({
+        nodes: nodes.map((n) => ({
+          id: n.id,
+          type: n.type,
+          position: n.position,
+          data: n.data,
+        })),
+        edges: edges.map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+          type: e.type,
+          data: e.data,
+        })),
+      });
+    }
+  }, [nodes, edges]);
 
   // 保存历史记录
   const saveHistory = useCallback(() => {
@@ -73,22 +180,6 @@ const CanvasContent = ({
     setHistoryIndex(newHistory.length - 1);
   }, [history, historyIndex, getNodes, getEdges]);
 
-  // 连接节点
-  const onConnect = useCallback(
-    (params) => {
-      const newEdge = {
-        ...params,
-        id: `e${params.source}-${params.target}`,
-        type: 'custom',
-        data: { onDelete: handleDeleteEdge },
-      };
-      setEdges((eds) => addEdge(newEdge, eds));
-      setIsDirty(true);
-      saveHistory();
-    },
-    [setEdges, saveHistory]
-  );
-
   // 删除边
   const handleDeleteEdge = useCallback(
     (edgeId) => {
@@ -98,6 +189,116 @@ const CanvasContent = ({
     },
     [setEdges, saveHistory]
   );
+
+  // 编辑边映射
+  const handleEditEdgeMapping = useCallback(
+    (edgeId) => {
+      const edge = getEdges().find(e => e.id === edgeId);
+      if (!edge) return;
+
+      const sourceNode = getNodes().find(n => n.id === edge.source);
+      const targetNode = getNodes().find(n => n.id === edge.target);
+      if (!sourceNode || !targetNode) return;
+
+      setEditingEdgeId(edgeId);
+      setMappingSourceNode(sourceNode);
+      setMappingTargetNode(targetNode);
+      setMappingConfig(edge.data?.dataMapping || {});
+      setMappingModalVisible(true);
+    },
+    [getNodes, getEdges]
+  );
+
+  // 连接节点
+  const onConnect = useCallback(
+    (params) => {
+      const sourceNode = getNodes().find(n => n.id === params.source);
+      const targetNode = getNodes().find(n => n.id === params.target);
+
+      if (!sourceNode || !targetNode) return;
+
+      // 检查源和目标是否都有模型数据
+      const sourceModel = sourceNode.data?.model;
+      const targetModel = targetNode.data?.model;
+
+      if (sourceModel && targetModel) {
+        const sourcePorts = getModelPorts(sourceModel);
+        const targetPorts = getModelPorts(targetModel);
+
+        // 如果都有显式端口，打开映射配置弹窗
+        if (sourcePorts.outputs.length > 0 && targetPorts.inputs.length > 0) {
+          setPendingConnection(params);
+          setMappingSourceNode(sourceNode);
+          setMappingTargetNode(targetNode);
+          setEditingEdgeId(null);
+
+          // 自动匹配
+          const autoMappings = autoMatchPorts(sourcePorts.outputs, targetPorts.inputs);
+          setMappingConfig(autoMappings);
+          setMappingModalVisible(true);
+          return;
+        }
+      }
+
+      // 无显式端口或非模型节点，直接连线
+      const newEdge = {
+        ...params,
+        id: `e${params.source}-${params.target}`,
+        type: 'custom',
+        data: { onDelete: handleDeleteEdge, onEdit: handleEditEdgeMapping },
+      };
+      setEdges((eds) => addEdge(newEdge, eds));
+      setIsDirty(true);
+      saveHistory();
+    },
+    [setEdges, saveHistory, getNodes, handleDeleteEdge, handleEditEdgeMapping]
+  );
+
+  // 确认数据映射
+  const handleMappingConfirm = useCallback(() => {
+    const hasMapping = Object.keys(mappingConfig).length > 0;
+    const edgeId = editingEdgeId || `e${pendingConnection.source}-${pendingConnection.target}`;
+
+    const newEdge = {
+      id: edgeId,
+      source: pendingConnection?.source || mappingSourceNode.id,
+      target: pendingConnection?.target || mappingTargetNode.id,
+      sourceHandle: pendingConnection?.sourceHandle,
+      targetHandle: pendingConnection?.targetHandle,
+      type: hasMapping ? 'dataFlow' : 'custom',
+      data: {
+        onDelete: handleDeleteEdge,
+        onEdit: handleEditEdgeMapping,
+        dataMapping: hasMapping ? mappingConfig : undefined,
+        mapping: hasMapping
+          ? Object.entries(mappingConfig).map(([t, s]) => `${s} → ${t}`).join(', ')
+          : undefined,
+      },
+    };
+
+    if (editingEdgeId) {
+      // 更新已有边
+      setEdges((eds) => eds.map(e => e.id === editingEdgeId ? newEdge : e));
+    } else {
+      // 添加新边
+      setEdges((eds) => [...eds.filter(e => e.id !== edgeId), newEdge]);
+    }
+
+    setIsDirty(true);
+    saveHistory();
+    setMappingModalVisible(false);
+    setPendingConnection(null);
+    setEditingEdgeId(null);
+
+    if (hasMapping) {
+      message.success(`数据映射配置成功: ${Object.entries(mappingConfig).map(([t, s]) => `${s}→${t}`).join(', ')}`);
+    }
+  }, [mappingConfig, pendingConnection, editingEdgeId, mappingSourceNode, mappingTargetNode, setEdges, saveHistory, handleDeleteEdge, handleEditEdgeMapping]);
+
+  // 双击边编辑映射
+  const onEdgeDoubleClick = useCallback((_, edge) => {
+    handleEditEdgeMapping(edge.id);
+  }, [handleEditEdgeMapping]);
 
   // 节点选中
   const onNodeClick = useCallback((_, node) => {
@@ -260,7 +461,10 @@ const CanvasContent = ({
         id: e.id,
         source: e.source,
         target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
         type: e.type,
+        data: e.data,
       })),
     };
 
@@ -369,6 +573,206 @@ const CanvasContent = ({
     });
   }, [configForm, selectedNode, setNodes, saveHistory]);
 
+  // ===== 数据映射弹窗 =====
+  const renderMappingModal = () => {
+    if (!mappingSourceNode || !mappingTargetNode) return null;
+
+    const sourceModel = mappingSourceNode.data?.model;
+    const targetModel = mappingTargetNode.data?.model;
+    const sourcePorts = getModelPorts(sourceModel);
+    const targetPorts = getModelPorts(targetModel);
+
+    if (sourcePorts.outputs.length === 0 && targetPorts.inputs.length === 0) {
+      return null;
+    }
+
+    const columns = [
+      {
+        title: `${sourceModel?.name || '源'} 输出端口`,
+        dataIndex: 'sourcePort',
+        key: 'sourcePort',
+        render: (port) => (
+          <Space>
+            <Tag color="blue">{port?.name}</Tag>
+            {port?.dataType && <span style={{ fontSize: 11, color: '#8c8c8c' }}>{port.dataType}</span>}
+          </Space>
+        ),
+      },
+      {
+        title: '',
+        key: 'arrow',
+        width: 50,
+        render: () => <SwapOutlined style={{ color: '#52c41a' }} />,
+      },
+      {
+        title: `${targetModel?.name || '目标'} 输入端口`,
+        dataIndex: 'targetPort',
+        key: 'targetPort',
+        render: (port) => (
+          <Space>
+            <Tag color="green">{port?.name}</Tag>
+            {port?.dataType && <span style={{ fontSize: 11, color: '#8c8c8c' }}>{port.dataType}</span>}
+            {port?.required && <Tag color="red" style={{ fontSize: 10 }}>必填</Tag>}
+          </Space>
+        ),
+      },
+      {
+        title: '兼容性',
+        key: 'compat',
+        width: 80,
+        render: (_, record) => {
+          const sType = record.sourcePort?.dataType;
+          const tType = record.targetPort?.dataType;
+          if (!sType || !tType) return <Tag>未知</Tag>;
+          if (sType === tType) return <Tag color="success">兼容</Tag>;
+          return (
+            <Tooltip title={`类型不匹配: ${sType} ≠ ${tType}`}>
+              <Tag color="warning" icon={<WarningOutlined />}>不匹配</Tag>
+            </Tooltip>
+          );
+        },
+      },
+      {
+        title: '操作',
+        key: 'action',
+        width: 80,
+        render: (_, record) => (
+          <Button
+            type="link"
+            danger
+            size="small"
+            onClick={() => {
+              const newConfig = { ...mappingConfig };
+              delete newConfig[record.targetPort.name];
+              setMappingConfig(newConfig);
+            }}
+          >
+            移除
+          </Button>
+        ),
+      },
+    ];
+
+    // 构建映射行数据
+    const dataSource = [];
+
+    // 已映射的行
+    for (const [targetName, sourceName] of Object.entries(mappingConfig)) {
+      const sourcePort = sourcePorts.outputs.find(p => p.name === sourceName);
+      const targetPort = targetPorts.inputs.find(p => p.name === targetName);
+      if (targetPort) {
+        dataSource.push({
+          key: targetName,
+          sourcePort: sourcePort || { name: sourceName, dataType: null },
+          targetPort,
+        });
+      }
+    }
+
+    // 未映射的目标端口
+    for (const targetPort of targetPorts.inputs) {
+      if (!mappingConfig[targetPort.name]) {
+        dataSource.push({
+          key: targetPort.name,
+          sourcePort: null,
+          targetPort,
+        });
+      }
+    }
+
+    // 未被使用的源端口
+    const usedSources = new Set(Object.values(mappingConfig));
+    const unusedSourcePorts = sourcePorts.outputs.filter(p => !usedSources.has(p.name));
+
+    return (
+      <Modal
+        title={
+          <Space>
+            <SwapOutlined style={{ color: '#52c41a' }} />
+            <span>数据映射配置</span>
+            <span style={{ fontSize: 13, color: '#8c8c8c', fontWeight: 'normal' }}>
+              {sourceModel?.name} → {targetModel?.name}
+            </span>
+          </Space>
+        }
+        open={mappingModalVisible}
+        onOk={handleMappingConfirm}
+        onCancel={() => {
+          setMappingModalVisible(false);
+          setPendingConnection(null);
+          setEditingEdgeId(null);
+        }}
+        okText="确认映射"
+        cancelText="取消"
+        width={700}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Space style={{ marginBottom: 8 }}>
+            <Button
+              size="small"
+              onClick={() => {
+                const autoMappings = autoMatchPorts(sourcePorts.outputs, targetPorts.inputs);
+                setMappingConfig(autoMappings);
+                message.success('已自动匹配端口');
+              }}
+            >
+              自动匹配
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setMappingConfig({})}
+            >
+              清除所有
+            </Button>
+          </Space>
+
+          {unusedSourcePorts.length > 0 && (
+            <div style={{ margin: '12px 0' }}>
+              <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 8 }}>
+                点击源端口，再点击目标端口进行映射：
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: '#1890ff' }}>未映射输出:</span>
+                {unusedSourcePorts.map(port => (
+                  <Tag
+                    key={port.name}
+                    color="blue"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      // 找到第一个未映射的输入端口
+                      const unmappedInput = targetPorts.inputs.find(
+                        t => !mappingConfig[t.name]
+                      );
+                      if (unmappedInput) {
+                        setMappingConfig(prev => ({
+                          ...prev,
+                          [unmappedInput.name]: port.name,
+                        }));
+                      } else {
+                        message.info('所有输入端口已映射');
+                      }
+                    }}
+                  >
+                    {port.name} ({port.dataType})
+                  </Tag>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <Table
+          columns={columns}
+          dataSource={dataSource}
+          pagination={false}
+          size="small"
+          locale={{ emptyText: '暂无映射配置' }}
+        />
+      </Modal>
+    );
+  };
+
   // 右键菜单项
   const contextMenuItems = [
     {
@@ -451,6 +855,7 @@ const CanvasContent = ({
         onPaneClick={onPaneClick}
         onNodeDoubleClick={onNodeDoubleClick}
         onNodeContextMenu={onNodeContextMenu}
+        onEdgeDoubleClick={onEdgeDoubleClick}
         onDragOver={onDragOver}
         onDrop={onDrop}
         nodeTypes={nodeTypes}
@@ -482,8 +887,9 @@ const CanvasContent = ({
         <Panel position="top-left" className={styles.helpPanel}>
           <div className={styles.helpText}>
             <p>🖱️ 拖拽模型到画布</p>
-            <p>🔗 拖拽连接节点</p>
+            <p>🔗 拖拽连接节点端口</p>
             <p>✏️ 双击编辑节点</p>
+            <p>🔄 双击连线编辑映射</p>
             <p>🗑️ 选中按 Delete 删除</p>
           </div>
         </Panel>
@@ -541,6 +947,9 @@ const CanvasContent = ({
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 数据映射配置弹窗 */}
+      {renderMappingModal()}
     </div>
   );
 };

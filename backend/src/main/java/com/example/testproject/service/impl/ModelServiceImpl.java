@@ -23,6 +23,9 @@ public class ModelServiceImpl extends ServiceImpl<ModelMapper, Model> implements
     @Override
     @Transactional
     public Model createModel(Model model, UUID ownerId) {
+        if (model.getId() == null) {
+            model.setId(UUID.randomUUID());
+        }
         model.setOwnerId(ownerId);
         model.setStatus("draft");
         model.setVersionCount(1);

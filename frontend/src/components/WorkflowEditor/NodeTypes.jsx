@@ -18,6 +18,24 @@ import styles from './WorkflowEditor.module.css';
 const ModelNode = memo(({ data, selected }) => {
   const { model, status = 'idle', onDoubleClick, onContextMenu } = data;
 
+  // 解析接口端口
+  const interfaces = model?.interfaces;
+  let inputPorts = [];
+  let outputPorts = [];
+
+  if (interfaces) {
+    // 接口可能是数组（后端格式）或 {inputs:[], outputs:[]}（前端格式）
+    if (Array.isArray(interfaces)) {
+      inputPorts = interfaces.filter(i => i.type === 'input');
+      outputPorts = interfaces.filter(i => i.type === 'output');
+    } else if (interfaces.inputs || interfaces.outputs) {
+      inputPorts = (interfaces.inputs || []).map(i => ({ ...i, type: 'input' }));
+      outputPorts = (interfaces.outputs || []).map(i => ({ ...i, type: 'output' }));
+    }
+  }
+
+  const hasExplicitPorts = inputPorts.length > 0 || outputPorts.length > 0;
+
   const getStatusIcon = () => {
     switch (status) {
       case 'running':
@@ -44,18 +62,43 @@ const ModelNode = memo(({ data, selected }) => {
     }
   };
 
+  // 计算端口垂直分布位置
+  const getPortStyle = (index, total) => {
+    if (total <= 1) return { top: '50%' };
+    const cardHeight = 80 + total * 20; // 估算高度
+    const step = Math.max(24, cardHeight / (total + 1));
+    return { top: `${(index + 1) * step - 10}px` };
+  };
+
   return (
     <div
       className={`${styles.node} ${styles.modelNode} ${selected ? styles.selected : ''}`}
       onDoubleClick={() => onDoubleClick?.(data)}
       onContextMenu={(e) => onContextMenu?.(e, data)}
     >
-      <Handle
-        type="target"
-        position={Position.Left}
-        className={styles.handle}
-        id="input"
-      />
+      {/* 输入端口 Handles */}
+      {hasExplicitPorts ? (
+        inputPorts.map((port, idx) => (
+          <div key={port.name} className={styles.portWrapper} style={{ ...getPortStyle(idx, inputPorts.length), left: -6 }}>
+            <Handle
+              type="target"
+              position={Position.Left}
+              className={styles.handle}
+              id={port.name}
+              style={{ background: '#52c41a' }}
+            />
+            <span className={styles.portLabel} style={{ left: 10 }}>{port.name}</span>
+          </div>
+        ))
+      ) : (
+        <Handle
+          type="target"
+          position={Position.Left}
+          className={styles.handle}
+          id="input"
+        />
+      )}
+
       <Card
         className={styles.nodeCard}
         size="small"
@@ -87,12 +130,29 @@ const ModelNode = memo(({ data, selected }) => {
           </div>
         </div>
       </Card>
-      <Handle
-        type="source"
-        position={Position.Right}
-        className={styles.handle}
-        id="output"
-      />
+
+      {/* 输出端口 Handles */}
+      {hasExplicitPorts ? (
+        outputPorts.map((port, idx) => (
+          <div key={port.name} className={styles.portWrapper} style={{ ...getPortStyle(idx, outputPorts.length), right: -6 }}>
+            <Handle
+              type="source"
+              position={Position.Right}
+              className={styles.handle}
+              id={port.name}
+              style={{ background: '#1890ff' }}
+            />
+            <span className={styles.portLabel} style={{ right: 10 }}>{port.name}</span>
+          </div>
+        ))
+      ) : (
+        <Handle
+          type="source"
+          position={Position.Right}
+          className={styles.handle}
+          id="output"
+        />
+      )}
     </div>
   );
 });

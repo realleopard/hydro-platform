@@ -18,6 +18,9 @@ public class VisualizationSceneServiceImpl extends ServiceImpl<VisualizationScen
     @Override
     @Transactional
     public VisualizationScene createScene(VisualizationScene scene, UUID ownerId) {
+        if (scene.getId() == null) {
+            scene.setId(UUID.randomUUID());
+        }
         scene.setOwnerId(ownerId);
         scene.setStatus("draft");
         save(scene);

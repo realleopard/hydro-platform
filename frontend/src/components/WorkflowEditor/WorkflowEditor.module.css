@@ -239,6 +239,26 @@
   transform: scale(1.2);
 }
 
+/* 端口包装器 */
+.portWrapper {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  z-index: 1;
+}
+
+/* 端口标签 */
+.portLabel {
+  position: absolute;
+  font-size: 10px;
+  color: #8c8c8c;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 1px 4px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
 /* 边删除按钮 */
 .edgeDeleteButton {
   width: 24px !important;
