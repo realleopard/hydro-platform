@@ -62,7 +62,7 @@ const WorkflowList = () => {
         pageSize: query.pageSize,
         search: query.keyword || undefined,
       });
-      setWorkflows(result.items || []);
+      setWorkflows(result.records || []);
       setTotal(result.total || 0);
     } catch (err) {
       setError(err.message || '加载工作流列表失败');
@@ -98,7 +98,7 @@ const WorkflowList = () => {
   // 删除工作流
   const handleDelete = async (id) => {
     try {
-      await workflowService.deleteWorkflow(Number(id));
+      await workflowService.deleteWorkflow(id);
       message.success('删除成功');
       fetchWorkflows();
     } catch (error) {
@@ -109,7 +109,7 @@ const WorkflowList = () => {
   // 克隆工作流
   const handleClone = async (record) => {
     try {
-      await workflowService.cloneWorkflow(Number(record.id));
+      await workflowService.cloneWorkflow(record.id);
       message.success(`已克隆工作流 "${record.name}"`);
       fetchWorkflows();
     } catch (error) {
@@ -133,7 +133,12 @@ const WorkflowList = () => {
 
   // 导出工作流
   const handleExport = (record) => {
-    const blob = new Blob([JSON.stringify(record.definition, null, 2)], {
+    let def = record.definition;
+    // definition 在后端是 JSON 字符串，先解析再格式化
+    if (typeof def === 'string') {
+      try { def = JSON.parse(def); } catch { /* 保留原始字符串 */ }
+    }
+    const blob = new Blob([JSON.stringify(def, null, 2)], {
       type: 'application/json'
     });
     const url = URL.createObjectURL(blob);

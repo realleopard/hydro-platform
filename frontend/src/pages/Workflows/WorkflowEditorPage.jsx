@@ -36,6 +36,62 @@ import styles from './WorkflowEditorPage.module.css';
 const { TextArea } = Input;
 const { Search } = Input;
 
+// React Flow definition → backend WorkflowDefinition format
+const toBackendDefinition = (rfDef) => {
+  const nodes = (rfDef.nodes || [])
+    .filter(n => n.type !== 'start' && n.type !== 'end')
+    .map(n => ({
+      id: n.id,
+      type: n.type,
+      name: n.data?.label || n.id,
+      ...(n.data?.model?.id ? { modelId: n.data.model.id } : {}),
+      position: n.position,
+      config: Object.fromEntries(
+        Object.entries(n.data || {}).filter(([k]) =>
+          !['label', 'model', 'onDoubleClick', 'onContextMenu'].includes(k)
+        )
+      ),
+    }));
+
+  const edges = (rfDef.edges || []).map(e => ({
+    id: e.id,
+    source: e.source,
+    target: e.target,
+  }));
+
+  return { nodes, edges };
+};
+
+// backend WorkflowDefinition → React Flow format
+const toReactFlowDefinition = (backendDef) => {
+  const nodes = (backendDef?.nodes || []).map(n => ({
+    id: n.id,
+    type: n.type || 'model',
+    position: n.position || { x: 0, y: 0 },
+    data: {
+      label: n.name || n.id,
+      ...(n.modelId ? { model: { id: n.modelId, name: n.name } } : {}),
+      ...(n.config || {}),
+    },
+  }));
+
+  if (!nodes.find(n => n.type === 'start')) {
+    nodes.unshift({ id: 'start', type: 'start', position: { x: 100, y: 300 }, data: { label: '开始' } });
+  }
+  if (!nodes.find(n => n.type === 'end')) {
+    nodes.push({ id: 'end', type: 'end', position: { x: 800, y: 300 }, data: { label: '结束' } });
+  }
+
+  const edges = (backendDef?.edges || []).map(e => ({
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    type: 'custom',
+  }));
+
+  return { nodes, edges };
+};
+
 const WorkflowEditorPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -55,7 +111,7 @@ const WorkflowEditorPage = () => {
     setModelsLoading(true);
     try {
       const result = await modelService.getModels({ page: 1, pageSize: 100 });
-      setModels(result.items || []);
+      setModels(result.records || []);
     } catch (error) {
       console.error('加载模型列表失败:', error);
       message.error('加载模型列表失败');
@@ -84,9 +140,14 @@ const WorkflowEditorPage = () => {
   const fetchWorkflow = async () => {
     setLoading(true);
     try {
-      const data = await workflowService.getWorkflowById(Number(id));
+      const data = await workflowService.getWorkflowById(id);
       setWorkflow(data);
-      setDefinition(data.definition || { nodes: [], edges: [] });
+      // definition 在后端是 String 字段，需要 JSON.parse
+      let def = data.definition;
+      if (typeof def === 'string') {
+        try { def = JSON.parse(def); } catch { def = { nodes: [], edges: [] }; }
+      }
+      setDefinition(toReactFlowDefinition(def || { nodes: [], edges: [] }));
       form.setFieldsValue({
         name: data.name,
         description: data.description,
@@ -102,7 +163,7 @@ const WorkflowEditorPage = () => {
   // 过滤模型
   const filteredModels = models.filter(model =>
     model.name.toLowerCase().includes(modelSearch.toLowerCase()) ||
-    model.description.toLowerCase().includes(modelSearch.toLowerCase())
+    (model.description || '').toLowerCase().includes(modelSearch.toLowerCase())
   );
 
   // 拖拽开始
@@ -125,13 +186,14 @@ const WorkflowEditorPage = () => {
       const values = await form.validateFields();
       setSaving(true);
 
+      const backendDef = toBackendDefinition(definition);
       const workflowData = {
         ...values,
-        definition
+        definition: JSON.stringify(backendDef),
       };
 
       if (isEditing) {
-        await workflowService.updateWorkflow(Number(id), workflowData);
+        await workflowService.updateWorkflow(id, workflowData);
         message.success('工作流更新成功');
       } else {
         await workflowService.createWorkflow(workflowData);
@@ -147,20 +209,53 @@ const WorkflowEditorPage = () => {
     }
   };
 
-  // 运行工作流
+  // 运行工作流：先保存再运行
   const handleRun = async () => {
-    message.success('工作流开始运行');
+    try {
+      let workflowId = id;
+      if (!isEditing) {
+        // 新工作流先保存
+        const values = await form.validateFields();
+        const backendDef = toBackendDefinition(definition);
+        const result = await workflowService.createWorkflow({
+          ...values,
+          definition: JSON.stringify(backendDef),
+        });
+        workflowId = result.id;
+      } else {
+        // 已有工作流先保存更改
+        const values = await form.validateFields();
+        const backendDef = toBackendDefinition(definition);
+        await workflowService.updateWorkflow(id, {
+          ...values,
+          definition: JSON.stringify(backendDef),
+        });
+      }
+      // 调用后端运行接口
+      const task = await workflowService.runWorkflow(workflowId);
+      message.success('工作流开始运行');
+      navigate(`/tasks/${task.id}`);
+    } catch (error) {
+      message.error('运行失败: ' + (error.message || '请先保存工作流'));
+    }
   };
 
-  // 验证工作流
+  // 验证工作流（客户端校验）
   const handleValidate = async (def) => {
-    // 模拟验证
     const errors = [];
-    if (def.nodes.length < 2) {
-      errors.push('工作流至少需要包含开始和结束节点');
+    const modelNodes = (def.nodes || []).filter(n => n.type !== 'start' && n.type !== 'end');
+    if (modelNodes.length === 0) {
+      errors.push('工作流至少需要包含一个模型节点');
     }
-    if (def.edges.length === 0 && def.nodes.length > 2) {
+    if (modelNodes.length > 1 && (def.edges || []).length === 0) {
       errors.push('请连接节点以构建工作流');
+    }
+
+    // 检查模型节点是否都关联了模型
+    for (const node of modelNodes) {
+      if (node.type === 'model' && !node.data?.model?.id) {
+        errors.push(`节点 "${node.data?.label || node.id}" 未关联模型`);
+      }
     }
 
     return {
@@ -216,7 +311,7 @@ const WorkflowEditorPage = () => {
                 <Button
                   icon={<PlayCircleOutlined />}
                   onClick={handleRun}
-                  disabled={definition.nodes.length === 0}
+                  disabled={definition.nodes.length <= 2}
                 >
                   运行
                 </Button>

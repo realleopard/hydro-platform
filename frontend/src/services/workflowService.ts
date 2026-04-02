@@ -4,6 +4,7 @@ import {
   CreateWorkflowRequest,
   PageResponse,
   WorkflowDefinition,
+  Task,
 } from '../types';
 
 /**
@@ -38,7 +39,7 @@ export const workflowService = {
    * @param id 工作流 ID
    * @returns 工作流详情
    */
-  getWorkflowById: async (id: number): Promise<Workflow> => {
+  getWorkflowById: async (id: string): Promise<Workflow> => {
     return api.get<Workflow>(`/workflows/${id}`);
   },
 
@@ -58,7 +59,7 @@ export const workflowService = {
    * @returns 更新后的工作流
    */
   updateWorkflow: async (
-    id: number,
+    id: string,
     data: Partial<CreateWorkflowRequest>
   ): Promise<Workflow> => {
     return api.put<Workflow>(`/workflows/${id}`, data);
@@ -68,7 +69,7 @@ export const workflowService = {
    * 删除工作流
    * @param id 工作流 ID
    */
-  deleteWorkflow: async (id: number): Promise<void> => {
+  deleteWorkflow: async (id: string): Promise<void> => {
     return api.delete<void>(`/workflows/${id}`);
   },
 
@@ -135,7 +136,7 @@ export const workflowService = {
    * @param newName 新工作流名称
    * @returns 克隆的工作流
    */
-  cloneWorkflow: async (id: number, newName?: string): Promise<Workflow> => {
+  cloneWorkflow: async (id: string, newName?: string): Promise<Workflow> => {
     return api.post<Workflow>(`/workflows/${id}/clone`, {
       name: newName,
     });
@@ -146,7 +147,7 @@ export const workflowService = {
    * @param id 工作流 ID
    * @returns 工作流 JSON 数据
    */
-  exportWorkflow: async (id: number): Promise<WorkflowDefinition> => {
+  exportWorkflow: async (id: string): Promise<WorkflowDefinition> => {
     return api.get<WorkflowDefinition>(`/workflows/${id}/export`);
   },
 
@@ -173,8 +174,12 @@ export const workflowService = {
    * @param id 工作流 ID
    * @returns 执行历史列表
    */
+  runWorkflow: async (id: string): Promise<Task> => {
+    return api.post<Task>(`/workflows/${id}/run`);
+  },
+
   getExecutionHistory: async (
-    id: number
+    id: string
   ): Promise<
     Array<{
       taskId: number;
@@ -210,7 +215,7 @@ export const workflowService = {
    * @returns 更新后的工作流
    */
   updateDefinition: async (
-    id: number,
+    id: string,
     definition: WorkflowDefinition
   ): Promise<Workflow> => {
     return api.patch<Workflow>(`/workflows/${id}/definition`, { definition });
@@ -221,7 +226,7 @@ export const workflowService = {
    * @param id 工作流 ID
    * @param isPublic 是否公开
    */
-  setPublic: async (id: number, isPublic: boolean): Promise<void> => {
+  setPublic: async (id: string, isPublic: boolean): Promise<void> => {
     return api.patch<void>(`/workflows/${id}/visibility`, { isPublic });
   },
 };
