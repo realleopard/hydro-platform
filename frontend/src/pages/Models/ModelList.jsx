@@ -110,7 +110,7 @@ const ModelList = () => {
   // 删除模型
   const handleDelete = async (id) => {
     try {
-      await modelService.deleteModel(Number(id));
+      await modelService.deleteModel(id);
       message.success('删除成功');
       fetchModels();
     } catch (error) {

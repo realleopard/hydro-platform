@@ -56,11 +56,34 @@ const ModelDetail = () => {
     setLoading(true);
     setError(null);
     try {
-      const modelId = Number(id);
       const [modelData, versionsData] = await Promise.all([
-        modelService.getModelById(modelId),
-        modelService.getVersions(modelId).catch(() => [])
+        modelService.getModelById(id),
+        modelService.getVersions(id).catch(() => [])
       ]);
+
+      // 解析 JSON 字符串字段
+      if (typeof modelData.interfaces === 'string') {
+        try { modelData.interfaces = JSON.parse(modelData.interfaces); } catch { modelData.interfaces = []; }
+      }
+      if (typeof modelData.resources === 'string') {
+        try { modelData.resources = JSON.parse(modelData.resources); } catch { modelData.resources = {}; }
+      }
+      if (typeof modelData.parameters === 'string') {
+        try { modelData.parameters = JSON.parse(modelData.parameters); } catch { modelData.parameters = []; }
+      }
+      // 确保 interfaces 是数组
+      if (!Array.isArray(modelData.interfaces)) {
+        // 可能是 {input: [...], output: [...]} 格式，展平
+        const raw = modelData.interfaces;
+        if (raw && typeof raw === 'object') {
+          const inputs = (raw.input || raw.inputs || []).map(i => ({ ...i, type: 'input' }));
+          const outputs = (raw.output || raw.outputs || []).map(i => ({ ...i, type: 'output' }));
+          modelData.interfaces = [...inputs, ...outputs];
+        } else {
+          modelData.interfaces = [];
+        }
+      }
+
       setModel(modelData);
       setVersions(versionsData || []);
     } catch (err) {
@@ -308,7 +331,7 @@ const ModelDetail = () => {
                   <Descriptions.Item label="CPU">{model.resources?.cpu || '-'} 核</Descriptions.Item>
                   <Descriptions.Item label="内存">{model.resources?.memory || '-'}</Descriptions.Item>
                   <Descriptions.Item label="存储">{model.resources?.storage || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="超时时间">{model.resources?.timeout || '-'} 秒</Descriptions.Item>
+                  <Descriptions.Item label="超时时间">{model.resources?.timeout ? `${model.resources.timeout} 秒` : '-'}</Descriptions.Item>
                 </Descriptions>
 
                 {model.validationMetrics && (

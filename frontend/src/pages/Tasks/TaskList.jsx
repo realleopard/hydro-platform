@@ -124,7 +124,7 @@ const TaskList = () => {
   // 取消任务
   const handleCancel = async (id) => {
     try {
-      await taskService.cancelTask(Number(id));
+      await taskService.cancelTask(id);
       message.success('任务已取消');
       fetchTasks();
     } catch (err) {
@@ -136,7 +136,7 @@ const TaskList = () => {
   // 重试任务
   const handleRetry = async (id) => {
     try {
-      await taskService.retryTask(Number(id));
+      await taskService.retryTask(id);
       message.success('任务已重新提交');
       fetchTasks();
     } catch (err) {
@@ -148,7 +148,7 @@ const TaskList = () => {
   // 删除任务
   const handleDelete = async (id) => {
     try {
-      await taskService.deleteTask(Number(id));
+      await taskService.deleteTask(id);
       message.success('任务已删除');
       fetchTasks();
     } catch (err) {

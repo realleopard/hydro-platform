@@ -56,7 +56,7 @@ const WorkflowDetail = () => {
   const fetchWorkflow = async () => {
     setLoading(true);
     try {
-      const data = await workflowService.getWorkflowById(Number(id));
+      const data = await workflowService.getWorkflowById(id);
       if (data) {
         setWorkflow(data);
       } else {
@@ -73,7 +73,7 @@ const WorkflowDetail = () => {
 
   const fetchExecutionHistory = async () => {
     try {
-      const history = await workflowService.getExecutionHistory(Number(id));
+      const history = await workflowService.getExecutionHistory(id);
       setExecutionHistory(history || []);
     } catch (error) {
       console.error('加载执行历史失败', error);
@@ -82,7 +82,7 @@ const WorkflowDetail = () => {
 
   const handleRun = async () => {
     try {
-      const task = await taskService.createTask({ workflowId: Number(id) });
+      const task = await taskService.createTask({ workflowId: id });
       message.success('工作流开始运行');
       navigate(`/tasks/${task.id}`);
     } catch (error) {
@@ -92,7 +92,7 @@ const WorkflowDetail = () => {
 
   const handleClone = async () => {
     try {
-      await workflowService.cloneWorkflow(Number(id));
+      await workflowService.cloneWorkflow(id);
       message.success(`已克隆工作流 "${workflow.name}"`);
     } catch (error) {
       message.error('克隆失败');
@@ -114,7 +114,7 @@ const WorkflowDetail = () => {
 
   const handleDelete = async () => {
     try {
-      await workflowService.deleteWorkflow(Number(id));
+      await workflowService.deleteWorkflow(id);
       message.success('工作流已删除');
       navigate('/workflows');
     } catch (error) {

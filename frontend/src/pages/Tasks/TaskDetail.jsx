@@ -72,7 +72,7 @@ const TaskDetail = () => {
     setLoading(true);
     setError(null);
     try {
-      const taskId = Number(id);
+      const taskId = id;
       const [taskData, logsData, outputsData] = await Promise.all([
         taskService.getTaskById(taskId),
         taskService.getTaskLogs(taskId).catch(() => []),
@@ -98,7 +98,7 @@ const TaskDetail = () => {
   useEffect(() => {
     if (!id || !task) return;
 
-    const taskId = Number(id);
+    const taskId = id;
     const taskStatus = task.status;
 
     // 只在任务处于活动状态时连接 WebSocket
@@ -215,7 +215,7 @@ const TaskDetail = () => {
   const handleCancel = async () => {
     try {
       if (!id) return;
-      await taskService.cancelTask(Number(id));
+      await taskService.cancelTask(id);
       message.success('任务已取消');
       fetchTaskDetail();
     } catch (err) {
@@ -228,7 +228,7 @@ const TaskDetail = () => {
   const handleRetry = async () => {
     try {
       if (!id) return;
-      await taskService.retryTask(Number(id));
+      await taskService.retryTask(id);
       message.success('任务已重新提交');
       fetchTaskDetail();
     } catch (err) {
@@ -241,7 +241,7 @@ const TaskDetail = () => {
   const handleDownload = async (filePath) => {
     try {
       if (!id) return;
-      const url = await taskService.getDownloadUrl(Number(id), filePath);
+      const url = await taskService.getDownloadUrl(id, filePath);
       window.open(url, '_blank');
     } catch (err) {
       console.error('Failed to get download URL:', err);
