@@ -1,0 +1,22 @@
+{
+  "name": "bod-do",
+  "version": "1.0.0",
+  "description": "BOD-DO 水质模型 (Streeter-Phelps)",
+  "author": "Watershed Platform",
+  "parameters": [
+    {"name": "kd", "type": "float", "default": 0.2, "min": 0.1, "max": 0.5, "description": "BOD降解系数(1/d)"},
+    {"name": "ka", "type": "float", "default": 0.5, "min": 0.2, "max": 2.0, "description": "复氧系数(1/d)"},
+    {"name": "L0", "type": "float", "default": 15, "min": 1, "max": 50, "description": "初始BOD浓度(mg/L)"},
+    {"name": "DO_sat", "type": "float", "default": 9.0, "min": 6, "max": 14, "description": "饱和溶解氧(mg/L)"}
+  ],
+  "inputs": [],
+  "outputs": [
+    {"name": "BOD", "type": "timeseries", "data_type": "float", "description": "BOD沿程分布(mg/L)"},
+    {"name": "DO", "type": "timeseries", "data_type": "float", "description": "DO沿程分布(mg/L)"},
+    {"name": "critical_distance", "type": "scalar", "data_type": "float", "description": "临界距离(km)"},
+    {"name": "minimum_DO", "type": "scalar", "data_type": "float", "description": "最小溶解氧(mg/L)"}
+  ],
+  "cpu_cores": 1,
+  "memory_mb": 512,
+  "max_runtime_seconds": 300
+}

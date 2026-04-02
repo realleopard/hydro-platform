@@ -1,0 +1,22 @@
+{
+  "name": "scs-cn",
+  "version": "1.0.0",
+  "description": "SCS-CN 降雨径流模型",
+  "author": "Watershed Platform",
+  "parameters": [
+    {"name": "cn", "type": "float", "default": 65, "min": 30, "max": 100, "description": "曲线号(Curve Number)"},
+    {"name": "ia_ratio", "type": "float", "default": 0.2, "min": 0.05, "max": 0.5, "description": "初始损失比"}
+  ],
+  "inputs": [
+    {"name": "rainfall", "type": "timeseries", "data_type": "float", "description": "降雨量(mm)", "required": true},
+    {"name": "duration", "type": "scalar", "data_type": "float", "description": "降雨持续时间(h)", "required": false}
+  ],
+  "outputs": [
+    {"name": "runoff", "type": "timeseries", "data_type": "float", "description": "径流量(mm)"},
+    {"name": "peak_runoff", "type": "scalar", "data_type": "float", "description": "峰值径流量(mm)"},
+    {"name": "total_runoff", "type": "scalar", "data_type": "float", "description": "总径流量(mm)"}
+  ],
+  "cpu_cores": 1,
+  "memory_mb": 512,
+  "max_runtime_seconds": 300
+}

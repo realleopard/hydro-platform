@@ -1,0 +1,23 @@
+{
+  "name": "muskingum",
+  "version": "1.0.0",
+  "description": "Muskingum 洪水演进模型",
+  "author": "Watershed Platform",
+  "parameters": [
+    {"name": "K", "type": "float", "default": 12, "min": 1, "max": 48, "description": "传播时间(h)"},
+    {"name": "X", "type": "float", "default": 0.2, "min": 0, "max": 0.5, "description": "权重因子"},
+    {"name": "dt", "type": "float", "default": 1, "min": 0.1, "max": 24, "description": "时间步长(h)"}
+  ],
+  "inputs": [
+    {"name": "inflow", "type": "timeseries", "data_type": "float", "description": "入流量(m³/s)", "required": true},
+    {"name": "initial_outflow", "type": "scalar", "data_type": "float", "description": "初始出流量(m³/s)", "required": false}
+  ],
+  "outputs": [
+    {"name": "outflow", "type": "timeseries", "data_type": "float", "description": "出流量(m³/s)"},
+    {"name": "peak_attenuation", "type": "scalar", "data_type": "float", "description": "洪峰衰减比"},
+    {"name": "peak_lag_time", "type": "scalar", "data_type": "float", "description": "洪峰延迟时间(h)"}
+  ],
+  "cpu_cores": 1,
+  "memory_mb": 512,
+  "max_runtime_seconds": 300
+}

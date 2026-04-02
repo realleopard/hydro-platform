@@ -1,0 +1,25 @@
+{
+  "name": "penman-monteith",
+  "version": "1.0.0",
+  "description": "Penman-Monteith 蒸散发模型 (FAO-56)",
+  "author": "Watershed Platform",
+  "parameters": [
+    {"name": "altitude", "type": "float", "default": 100, "min": 0, "max": 5000, "description": "海拔高度(m)"},
+    {"name": "latitude", "type": "float", "default": 30, "min": -90, "max": 90, "description": "纬度(°)"},
+    {"name": "albedo", "type": "float", "default": 0.23, "min": 0.1, "max": 0.5, "description": "地表反照率"}
+  ],
+  "inputs": [
+    {"name": "temperature", "type": "timeseries", "data_type": "float", "description": "气温(°C)", "required": true},
+    {"name": "humidity", "type": "timeseries", "data_type": "float", "description": "相对湿度(%)", "required": true},
+    {"name": "wind_speed", "type": "timeseries", "data_type": "float", "description": "风速(m/s)", "required": true},
+    {"name": "solar_radiation", "type": "timeseries", "data_type": "float", "description": "太阳辐射(MJ/m²/d)", "required": true}
+  ],
+  "outputs": [
+    {"name": "ET0", "type": "timeseries", "data_type": "float", "description": "参考蒸散发量(mm/d)"},
+    {"name": "net_radiation", "type": "timeseries", "data_type": "float", "description": "净辐射(MJ/m²/d)"},
+    {"name": "soil_heat_flux", "type": "timeseries", "data_type": "float", "description": "土壤热通量(MJ/m²/d)"}
+  ],
+  "cpu_cores": 1,
+  "memory_mb": 512,
+  "max_runtime_seconds": 600
+}

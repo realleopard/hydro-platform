@@ -1,0 +1,22 @@
+{
+  "name": "frequency-analysis",
+  "version": "1.0.0",
+  "description": "水文频率分析模型 (P-III/Gumbel/GEV)",
+  "author": "Watershed Platform",
+  "parameters": [
+    {"name": "distribution", "type": "string", "default": "pearson3", "description": "分布类型(pearson3/gumbel/gev)"},
+    {"name": "return_periods", "type": "string", "default": "[10,20,50,100]", "description": "重现期列表"},
+    {"name": "confidence_level", "type": "float", "default": 0.95, "min": 0.9, "max": 0.99, "description": "置信水平"}
+  ],
+  "inputs": [
+    {"name": "annual_maxima", "type": "timeseries", "data_type": "float", "description": "年最大值序列", "required": true}
+  ],
+  "outputs": [
+    {"name": "design_values", "type": "scalar", "data_type": "float", "description": "各重现期设计值(JSON)"},
+    {"name": "distribution_params", "type": "scalar", "data_type": "float", "description": "分布参数(JSON)"},
+    {"name": "goodness_of_fit", "type": "scalar", "data_type": "float", "description": "拟合优度(JSON)"}
+  ],
+  "cpu_cores": 1,
+  "memory_mb": 1024,
+  "max_runtime_seconds": 600
+}

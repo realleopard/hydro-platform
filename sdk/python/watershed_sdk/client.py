@@ -83,7 +83,9 @@ class PlatformClient:
         response.raise_for_status()
 
         data = response.json()
-        self.token = data["data"]["accessToken"]
+        # 兼容后端返回 token 或 accessToken 字段
+        token = data["data"].get("accessToken") or data["data"].get("token")
+        self.token = token
         self.session.headers["Authorization"] = f"Bearer {self.token}"
 
         logger.info(f"用户 {username} 登录成功")
@@ -105,7 +107,7 @@ class PlatformClient:
             name: 模型名称
             description: 模型描述
             category_id: 分类ID
-            **kwargs: 其他模型属性
+            **kwargs: 其他模型属性 (dockerImage, interfaces, resources, parameters, tags, etc.)
 
         Returns:
             创建的模型信息
@@ -125,6 +127,67 @@ class PlatformClient:
         response.raise_for_status()
 
         return response.json()["data"]
+
+    def register_model(
+        self,
+        config_path: str,
+        docker_image: str,
+        category_id: Optional[str] = None,
+        visibility: str = "private"
+    ) -> Dict:
+        """
+        从 config.json 注册模型到平台
+
+        Args:
+            config_path: config.json 文件路径
+            docker_image: Docker 镜像名 (如 watershed/scs-cn:v1.0.0)
+            category_id: 分类ID (可选)
+            visibility: 可见性 (private/public/organization)
+
+        Returns:
+            创建的模型信息
+        """
+        config_data = json.loads(Path(config_path).read_text(encoding="utf-8"))
+
+        # 从 SDK Variable 定义转换为后端 interfaces 格式
+        interfaces = []
+        for inp in config_data.get("inputs", []):
+            interfaces.append({
+                "name": inp["name"],
+                "type": "input",
+                "dataType": inp.get("type", "scalar"),
+                "description": inp.get("description", ""),
+                "required": inp.get("required", False),
+            })
+        for out in config_data.get("outputs", []):
+            interfaces.append({
+                "name": out["name"],
+                "type": "output",
+                "dataType": out.get("type", "scalar"),
+                "description": out.get("description", ""),
+            })
+
+        # 构建 resources 格式
+        resources = {
+            "cpu": str(config_data.get("cpu_cores", 1)),
+            "memory": f"{config_data.get('memory_mb', 512)}Mi",
+            "timeout": config_data.get("max_runtime_seconds", 3600),
+        }
+
+        # 参数 JSON
+        parameters = config_data.get("parameters", [])
+
+        return self.create_model(
+            name=config_data.get("name", "untitled"),
+            description=config_data.get("description", ""),
+            category_id=category_id or "",
+            dockerImage=docker_image,
+            interfaces=json.dumps(interfaces),
+            resources=json.dumps(resources),
+            parameters=json.dumps(parameters),
+            currentVersion=config_data.get("version", "1.0.0"),
+            visibility=visibility,
+        )
 
     def get_model(self, model_id: str) -> Dict:
         """获取模型详情"""

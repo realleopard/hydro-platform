@@ -11,7 +11,7 @@ from .model import BaseModel, ModelConfig
 from .io import InputHandler, OutputHandler, DataType
 from .validation import ValidationMetrics, Validator
 from .client import PlatformClient
-from .executor import LocalExecutor
+from .executor import LocalExecutor, DockerExecutor
 
 __all__ = [
     "BaseModel",
@@ -23,4 +23,5 @@ __all__ = [
     "Validator",
     "PlatformClient",
     "LocalExecutor",
+    "DockerExecutor",
 ]

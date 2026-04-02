@@ -274,14 +274,18 @@ class DockerExecutor:
     """
     Docker 模型执行器
 
-    在 Docker 容器中运行模型
+    在 Docker 容器中运行模型，使用与后端 TaskScheduler 相同的协议:
+    - 工作目录: /workspace
+    - 挂载: /workspace/data, /workspace/output, /workspace/input/data.json
+    - 环境变量: INPUT_<NAME>, INPUT_DATA_FILE, TASK_ID, NODE_ID
+    - 输出: stdout 解析为 JSON
     """
 
     def __init__(
         self,
         image: str,
         tag: str = "latest",
-        working_dir: str = "/app"
+        working_dir: str = "/workspace"
     ):
         """
         初始化Docker执行器
@@ -297,39 +301,85 @@ class DockerExecutor:
 
     def run(
         self,
-        input_dir: str,
-        output_dir: str,
+        input_data: Optional[Dict[str, Any]] = None,
+        input_dir: Optional[str] = None,
+        output_dir: Optional[str] = None,
+        data_dir: Optional[str] = None,
         parameters: Optional[Dict[str, Any]] = None,
+        task_id: Optional[str] = None,
+        node_id: Optional[str] = None,
         remove: bool = True
     ) -> subprocess.CompletedProcess:
         """
-        在Docker中运行模型
+        在Docker中运行模型（与后端 TaskScheduler 协议一致）
 
         Args:
-            input_dir: 输入目录（挂载到 /app/inputs）
-            output_dir: 输出目录（挂载到 /app/outputs）
-            parameters: 参数JSON文件路径或字典
+            input_data: 输入数据字典，写入 data.json 挂载到 /workspace/input/data.json
+            input_dir: 输入目录（可选，自动创建临时目录）
+            output_dir: 输出目录（挂载到 /workspace/output）
+            data_dir: 数据目录（挂载到 /workspace/data）
+            parameters: 模型参数，设为 INPUT_<NAME> 环境变量
+            task_id: 任务 ID
+            node_id: 节点 ID
             remove: 运行后是否删除容器
 
         Returns:
             运行结果
         """
+        import tempfile
+
         cmd = ["docker", "run"]
 
         if remove:
             cmd.append("--rm")
 
-        # 挂载卷
-        cmd.extend(["-v", f"{input_dir}:/app/inputs:ro"])
-        cmd.extend(["-v", f"{output_dir}:/app/outputs"])
+        # 创建临时目录
+        tmp_input = None
+        tmp_output = None
+        tmp_data = None
+        if input_dir is None:
+            tmp_input = tempfile.mkdtemp(prefix="watershed_input_")
+            input_dir = tmp_input
+        if output_dir is None:
+            tmp_output = tempfile.mkdtemp(prefix="watershed_output_")
+            output_dir = tmp_output
+        if data_dir is None:
+            tmp_data = tempfile.mkdtemp(prefix="watershed_data_")
+            data_dir = tmp_data
 
-        # 参数
+        # 确保 output 和 data 目录存在
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        Path(data_dir).mkdir(parents=True, exist_ok=True)
+        Path(input_dir).mkdir(parents=True, exist_ok=True)
+
+        # 挂载卷（与后端 TaskScheduler.buildVolumeMounts 一致）
+        cmd.extend(["-v", f"{data_dir}:/workspace/data"])
+        cmd.extend(["-v", f"{output_dir}:/workspace/output"])
+
+        # 写入 data.json 并挂载
+        if input_data:
+            input_file = Path(input_dir) / "data.json"
+            input_file.parent.mkdir(parents=True, exist_ok=True)
+            input_file.write_text(json.dumps(input_data, ensure_ascii=False), encoding="utf-8")
+            cmd.extend(["-v", f"{input_file}:/workspace/input/data.json"])
+            cmd.extend(["-e", "INPUT_DATA_FILE=/workspace/input/data.json"])
+
+        # 环境变量
+        cmd.extend(["-e", f"WORKING_DIR={self.working_dir}"])
+
+        if task_id:
+            cmd.extend(["-e", f"TASK_ID={task_id}"])
+        if node_id:
+            cmd.extend(["-e", f"NODE_ID={node_id}"])
+
+        # 参数设为 INPUT_<NAME> 环境变量（与后端 buildEnvironmentVariables 一致）
         if parameters:
-            if isinstance(parameters, dict):
-                param_json = json.dumps(parameters)
-                cmd.extend(["-e", f"MODEL_PARAMS={param_json}"])
-            else:
-                cmd.extend(["-e", f"MODEL_PARAMS_FILE=/app/inputs/{parameters}"])
+            for name, value in parameters.items():
+                env_name = f"INPUT_{name.upper()}"
+                if isinstance(value, (dict, list)):
+                    cmd.extend(["-e", f"{env_name}={json.dumps(value)}"])
+                else:
+                    cmd.extend(["-e", f"{env_name}={value}"])
 
         # 镜像
         cmd.append(f"{self.image}:{self.tag}")
@@ -339,10 +389,21 @@ class DockerExecutor:
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
+            # 失败时保留输出目录供调试，只清理输入和数据目录
+            import shutil
+            for tmp_dir in [tmp_input, tmp_data]:
+                if tmp_dir:
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
             logger.error(f"Docker运行失败: {result.stderr}")
             raise subprocess.CalledProcessError(
                 result.returncode, cmd, result.stdout, result.stderr
             )
+
+        # 成功时清理所有临时目录
+        import shutil
+        for tmp_dir in [tmp_input, tmp_output, tmp_data]:
+            if tmp_dir:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
 
         return result
 
