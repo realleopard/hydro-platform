@@ -335,12 +335,9 @@ const MeasurementTool = ({ viewer, onMeasurementComplete }) => {
 
   // 清除所有测量
   const clearAllMeasurements = useCallback(() => {
-    measurements.forEach(() => {
-      // 这里可以根据需要清理已保存的测量实体
-    });
     setMeasurements([]);
     clearCurrentMeasurement();
-  }, [measurements, clearCurrentMeasurement]);
+  }, [clearCurrentMeasurement]);
 
   // 格式化距离
   const formatDistance = (meters) => {

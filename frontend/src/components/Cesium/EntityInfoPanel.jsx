@@ -1,21 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Descriptions, Tag, Button } from 'antd';
 import {
   EnvironmentOutlined,
   BarChartOutlined,
   InfoCircleOutlined,
-  CloseOutlined
+  CloseOutlined,
+  LineChartOutlined,
 } from '@ant-design/icons';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { getEntityHistory } from '../../services/mockTimeSeriesData';
 
-/**
- * 实体详情面板组件 - 显示选中水文实体的详细信息
- */
 const EntityInfoPanel = ({ entity, onClose }) => {
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyData, setHistoryData] = useState([]);
+
+  const type = entity?.type;
+  const id = entity?.id;
+  const name = entity?.name;
+  const properties = entity?.properties;
+
+  useEffect(() => {
+    if (showHistory && type && id) {
+      const data = getEntityHistory(type, id);
+      setHistoryData(data);
+    }
+  }, [showHistory, type, id]);
+
   if (!entity) return null;
 
-  const { type, id, name, properties } = entity;
+  const unit = getUnit(properties?.type);
 
-  // 根据实体类型渲染不同的内容
   const renderContent = () => {
     switch (type) {
       case 'river':
@@ -134,9 +148,8 @@ const EntityInfoPanel = ({ entity, onClose }) => {
     }
   };
 
-  // 辅助函数
-  const getStationTypeColor = (type) => {
-    switch (type) {
+  const getStationTypeColor = (t) => {
+    switch (t) {
       case 'rainfall': return 'blue';
       case 'flow': return 'green';
       case 'waterLevel': return 'cyan';
@@ -145,8 +158,8 @@ const EntityInfoPanel = ({ entity, onClose }) => {
     }
   };
 
-  const getStationTypeLabel = (type) => {
-    switch (type) {
+  const getStationTypeLabel = (t) => {
+    switch (t) {
       case 'rainfall': return '雨量站';
       case 'flow': return '流量站';
       case 'waterLevel': return '水位站';
@@ -155,15 +168,15 @@ const EntityInfoPanel = ({ entity, onClose }) => {
     }
   };
 
-  const getValueColor = (type, value) => {
-    if (type === 'rainfall') {
+  const getValueColor = (t, value) => {
+    if (t === 'rainfall') {
       if (value < 10) return '#66ccff';
       if (value < 25) return '#00aaff';
       if (value < 50) return '#0066cc';
       if (value < 100) return '#ffcc00';
       return '#ff6600';
     }
-    if (type === 'flow') {
+    if (t === 'flow') {
       if (value < 100) return '#00cc66';
       if (value < 500) return '#66cc00';
       if (value < 1000) return '#cccc00';
@@ -171,15 +184,6 @@ const EntityInfoPanel = ({ entity, onClose }) => {
       return '#cc0000';
     }
     return '#1890ff';
-  };
-
-  const getUnit = (type) => {
-    switch (type) {
-      case 'rainfall': return 'mm';
-      case 'flow': return 'm³/s';
-      case 'waterLevel': return 'm';
-      default: return '';
-    }
   };
 
   return (
@@ -204,19 +208,70 @@ const EntityInfoPanel = ({ entity, onClose }) => {
         top: '10px',
         right: '10px',
         zIndex: 100,
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+        maxHeight: '80vh',
+        overflow: 'auto',
       }}
       bodyStyle={{ padding: '16px' }}
     >
       {renderContent()}
 
       <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
-        <Button type="primary" block icon={<BarChartOutlined />}>
-          查看历史数据
+        <Button
+          block
+          icon={<LineChartOutlined />}
+          onClick={() => setShowHistory(!showHistory)}
+          style={{ marginBottom: showHistory ? 12 : 0 }}
+        >
+          {showHistory ? '收起历史数据' : '查看历史数据'}
         </Button>
+
+        {showHistory && historyData.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <h4 style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>
+              近30天趋势{unit ? ` (${unit})` : ''}
+            </h4>
+            <ResponsiveContainer width="100%" height={120}>
+              <LineChart data={historyData}>
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(v) => v.slice(5)}
+                />
+                <YAxis tick={{ fontSize: 10 }} width={40} />
+                <Tooltip
+                  formatter={(val) => [val.toFixed(1), unit || '值']}
+                  labelFormatter={(v) => `日期: ${v}`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#1890ff"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {showHistory && historyData.length === 0 && (
+          <div style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: 8 }}>
+            暂无历史数据
+          </div>
+        )}
       </div>
     </Card>
   );
 };
+
+function getUnit(type) {
+  switch (type) {
+    case 'rainfall': return 'mm';
+    case 'flow': return 'm³/s';
+    case 'waterLevel': return 'm';
+    default: return '';
+  }
+}
 
 export default EntityInfoPanel;

@@ -8,3 +8,4 @@ export { default as HydrologyEntities } from './HydrologyEntities';
 export { default as TerrainLayer } from './TerrainLayer';
 export { default as ImageryLayer } from './ImageryLayer';
 export { default as EntityInfoPanel } from './EntityInfoPanel';
+export { default as Legend } from './Legend';

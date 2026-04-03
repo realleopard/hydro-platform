@@ -17,7 +17,8 @@ import {
   HydrologyEntities,
   TerrainLayer,
   ImageryLayer,
-  EntityInfoPanel
+  EntityInfoPanel,
+  Legend,
 } from '../../components/Cesium';
 import {
   getRivers,
@@ -28,6 +29,7 @@ import {
   createScene,
   updateScene,
 } from '../../services/visualizationService';
+import { getRainfallByDay, getFlowByDay as getFlowByDayData } from '../../services/mockTimeSeriesData';
 import { SCENE_TYPE_OPTIONS } from '../../types';
 import './VisualizationPage.css';
 
@@ -156,6 +158,8 @@ const VisualizationPage = () => {
   const [particlePositions, setParticlePositions] = useState([]);
   const [spatialLoading, setSpatialLoading] = useState(true);
   const [spatialError, setSpatialError] = useState(null);
+  const [particleIntensity, setParticleIntensity] = useState(1.0);
+  const [colormap, setColormap] = useState('jet');
 
   // 示例数据 - 时间范围
   const startTime = new Date('2024-01-01');
@@ -369,7 +373,50 @@ const VisualizationPage = () => {
 
   const handleTimeChange = useCallback((time) => {
     setCurrentTime(time);
-  }, []);
+    // 根据日期索引联动数据可视化
+    const dayIndex = Math.floor((time - startTime) / (24 * 60 * 60 * 1000));
+    const clampedIndex = Math.max(0, Math.min(30, dayIndex));
+
+    if (activeDataType === 'rainfall') {
+      const dayData = getRainfallByDay(clampedIndex);
+      const stations = dayData.stations.map(s => ({
+        longitude: s.longitude,
+        latitude: s.latitude,
+        rainfall: s.rainfall,
+      }));
+      const values = stations.map(s => s.rainfall);
+      setRainfallData({
+        stations,
+        min: Math.min(...values),
+        max: Math.max(...values),
+      });
+      // 粒子强度随降雨量联动
+      setParticlePositions(stations.map(s => ({
+        longitude: s.longitude,
+        latitude: s.latitude,
+        height: 5000,
+      })));
+    }
+
+    if (activeDataType === 'river1d') {
+      const dayData = getFlowByDayData(clampedIndex);
+      const allPoints = [];
+      hydrologyData.rivers.forEach(r => {
+        r.coordinates.forEach(c => {
+          allPoints.push({
+            longitude: c.longitude,
+            latitude: c.latitude,
+            height: c.height,
+            value: dayData.averageFlow * (0.8 + Math.random() * 0.4),
+          });
+        });
+      });
+      if (allPoints.length > 0) {
+        const vals = allPoints.map(p => p.value);
+        setRiverData({ points: allPoints, min: Math.min(...vals), max: Math.max(...vals) });
+      }
+    }
+  }, [activeDataType, hydrologyData.rivers, startTime]);
 
   const handlePlayStateChange = useCallback((playing) => {
     setIsPlaying(playing);
@@ -437,7 +484,7 @@ const VisualizationPage = () => {
               viewer={viewer}
               type={particleType}
               data={particlePositions}
-              options={{ intensity: 1.0 }}
+              options={{ intensity: particleIntensity }}
             />
           )}
 
@@ -447,7 +494,18 @@ const VisualizationPage = () => {
               viewer={viewer}
               type={activeDataType}
               data={activeDataType === 'rainfall' ? rainfallData : riverData}
-              options={{ showLabels: true }}
+              options={{ showLabels: true, colormap }}
+            />
+          )}
+
+          {/* 图例 */}
+          {activeDataType && (
+            <Legend
+              colormap={activeDataType === 'rainfall' ? 'rainfall' : 'flow'}
+              min={activeDataType === 'rainfall' ? rainfallData.min : riverData.min}
+              max={activeDataType === 'rainfall' ? rainfallData.max : riverData.max}
+              unit={activeDataType === 'rainfall' ? 'mm' : 'm³/s'}
+              title={activeDataType === 'rainfall' ? '降雨量' : '流量'}
             />
           )}
 
@@ -530,17 +588,56 @@ const VisualizationPage = () => {
           >
             {activeDataType === 'rainfall' ? '隐藏降雨' : '显示降雨'}
           </button>
+          {particleType && (
+            <div style={{ marginTop: 8 }}>
+              <label style={{ fontSize: 12, color: '#aaa' }}>粒子强度: {particleIntensity.toFixed(1)}</label>
+              <input
+                type="range"
+                min="0.1"
+                max="3.0"
+                step="0.1"
+                value={particleIntensity}
+                onChange={(e) => setParticleIntensity(parseFloat(e.target.value))}
+                style={{ width: '100%', marginTop: 4 }}
+              />
+            </div>
+          )}
         </div>
 
         <div className="sidebar-section">
           <h3>🌊 水文数据</h3>
-          <button
-            className={`viz-btn ${activeDataType === 'river1d' ? 'active' : ''}`}
-            onClick={toggleRiverData}
-            disabled={spatialLoading}
-          >
-            {activeDataType === 'river1d' ? '隐藏河网' : '显示河网'}
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button
+              className={`viz-btn ${activeDataType === 'river1d' ? 'active' : ''}`}
+              onClick={toggleRiverData}
+              disabled={spatialLoading}
+            >
+              {activeDataType === 'river1d' ? '隐藏河网' : '显示河网'}
+            </button>
+            <button
+              className={`viz-btn ${activeDataType === 'grid2d' ? 'active' : ''}`}
+              onClick={() => setActiveDataType(activeDataType === 'grid2d' ? null : 'grid2d')}
+              disabled={spatialLoading}
+            >
+              {activeDataType === 'grid2d' ? '隐藏网格' : '显示网格'}
+            </button>
+          </div>
+        </div>
+
+        <div className="sidebar-section">
+          <h3>🎨 色彩方案</h3>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {['jet', 'hot', 'cool'].map((cm) => (
+              <button
+                key={cm}
+                className={`viz-btn ${colormap === cm ? 'active' : ''}`}
+                onClick={() => setColormap(cm)}
+                style={{ flex: 1, fontSize: 11, padding: '4px 0' }}
+              >
+                {cm === 'jet' ? '彩虹' : cm === 'hot' ? '热力' : '冷色'}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="sidebar-section">
