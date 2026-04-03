@@ -47,6 +47,9 @@ public class DatasetController {
      */
     @PostMapping("")
     public Result<Dataset> create(@RequestBody Dataset dataset, @CurrentUser UUID userId) {
+        if (dataset.getId() == null) {
+            dataset.setId(UUID.randomUUID());
+        }
         dataset.setOwnerId(userId);
         dataset.setDownloadCount(0);
         datasetService.save(dataset);

@@ -132,6 +132,9 @@ public class ModelController {
             @CurrentUser UUID userId) {
         version.setModelId(id);
         version.setCreatedBy(userId);
+        if (version.getId() == null) {
+            version.setId(UUID.randomUUID());
+        }
         modelVersionService.save(version);
         return Result.success(version);
     }
@@ -235,6 +238,9 @@ public class ModelController {
         review.setModelId(id);
         review.setUserId(userId);
         review.setHelpfulCount(0);
+        if (review.getId() == null) {
+            review.setId(UUID.randomUUID());
+        }
         modelReviewService.save(review);
         return Result.success(review);
     }
