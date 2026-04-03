@@ -17,6 +17,7 @@ import {
   PlayCircleOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from './stores/authStore';
 import ErrorBoundary from './components/Common/ErrorBoundary';
@@ -37,6 +38,7 @@ const WorkflowList = React.lazy(() => import('./pages/Workflows/WorkflowList'));
 const WorkflowDetail = React.lazy(() => import('./pages/Workflows/WorkflowDetail'));
 const WorkflowEditorPage = React.lazy(() => import('./pages/Workflows/WorkflowEditorPage'));
 const VisualizationPage = React.lazy(() => import('./pages/Visualization/VisualizationPage'));
+const SceneList = React.lazy(() => import('./pages/Visualization/SceneList'));
 
 const { Header, Sider, Content, Footer } = Layout;
 const { Text } = Typography;
@@ -85,6 +87,7 @@ const Navigation = () => {
     { key: '/tasks', icon: <NodeIndexOutlined />, label: '任务管理' },
     { key: '/workflows', icon: <NodeIndexOutlined />, label: '工作流编排' },
     { key: '/visualization', icon: <BarChartOutlined />, label: '可视化' },
+    { key: '/scenes', icon: <GlobalOutlined />, label: '场景管理' },
     { key: '/teaching', icon: <ExperimentOutlined />, label: '教学工具' },
     { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
   ];
@@ -95,6 +98,7 @@ const Navigation = () => {
     if (path.startsWith('/tasks')) return '/tasks';
     if (path.startsWith('/workflows')) return '/workflows';
     if (path.startsWith('/visualization')) return '/visualization';
+    if (path.startsWith('/scenes')) return '/scenes';
     if (path.startsWith('/teaching')) return '/teaching';
     if (path.startsWith('/settings')) return '/settings';
     return '/';
@@ -281,6 +285,7 @@ const AppContent = () => {
       <Route path="/workflows/:id" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><WorkflowDetail /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="/workflows/:id/edit" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><WorkflowEditorPage /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="/visualization" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><VisualizationPage /></React.Suspense></MainLayout></PrivateRoute>} />
+      <Route path="/scenes" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><SceneList /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="/teaching" element={<PrivateRoute><MainLayout><Teaching /></MainLayout></PrivateRoute>} />
       <Route path="/settings" element={<PrivateRoute><MainLayout><Settings /></MainLayout></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />

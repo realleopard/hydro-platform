@@ -1,4 +1,12 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Modal, Form, Input, Select, message } from 'antd';
+import {
+  SaveOutlined,
+  FolderOpenOutlined,
+  GlobalOutlined,
+} from '@ant-design/icons';
+import * as Cesium from 'cesium';
 import {
   CesiumViewer,
   LayerManager,
@@ -15,8 +23,12 @@ import {
   getRivers,
   getStations,
   getBasins,
-  getLakes
+  getLakes,
+  getScene,
+  createScene,
+  updateScene,
 } from '../../services/visualizationService';
+import { SCENE_TYPE_OPTIONS } from '../../types';
 import './VisualizationPage.css';
 
 /**
@@ -116,6 +128,8 @@ function geoJsonToHydrologyData(rivers, lakes, stations, basins) {
  * 3D可视化页面 - 集成所有Cesium组件
  */
 const VisualizationPage = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [viewer, setViewer] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date('2024-01-01'));
   const [isPlaying, setIsPlaying] = useState(false);
@@ -123,6 +137,12 @@ const VisualizationPage = () => {
   const [particleType, setParticleType] = useState(null);
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [showHydrology, setShowHydrology] = useState(true);
+
+  // Scene management state
+  const [currentScene, setCurrentScene] = useState(null);
+  const [pendingCameraConfig, setPendingCameraConfig] = useState(null);
+  const [saveModalVisible, setSaveModalVisible] = useState(false);
+  const [saveForm] = Form.useForm();
 
   // Dynamic data state
   const [hydrologyData, setHydrologyData] = useState({
@@ -140,6 +160,93 @@ const VisualizationPage = () => {
   // 示例数据 - 时间范围
   const startTime = new Date('2024-01-01');
   const endTime = new Date('2024-01-31');
+
+  // Fetch scene data from URL param
+  useEffect(() => {
+    const sceneId = searchParams.get('sceneId');
+    if (!sceneId) return;
+    let cancelled = false;
+    getScene(sceneId).then((scene) => {
+      if (cancelled) return;
+      setCurrentScene(scene);
+      if (scene.cameraConfig) {
+        setPendingCameraConfig(scene.cameraConfig);
+      }
+      if (scene.name) message.info(`已加载场景: ${scene.name}`);
+    }).catch((err) => {
+      console.warn('Failed to load scene:', err);
+    });
+    return () => { cancelled = true; };
+  }, [searchParams]);
+
+  // Restore camera position once both viewer and scene config are available
+  useEffect(() => {
+    if (!viewer || !pendingCameraConfig) return;
+    const cam = pendingCameraConfig;
+    if (typeof cam.longitude === 'number') {
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(cam.longitude, cam.latitude, cam.height || 2000000),
+        orientation: {
+          heading: Cesium.Math.toRadians(cam.heading || 0),
+          pitch: Cesium.Math.toRadians(cam.pitch || -90),
+          roll: Cesium.Math.toRadians(cam.roll || 0),
+        },
+        duration: 2,
+      });
+    }
+    setPendingCameraConfig(null);
+  }, [viewer, pendingCameraConfig]);
+
+  // Save scene handler
+  const handleSaveScene = () => {
+    if (currentScene) {
+      // Update existing scene
+      saveForm.setFieldsValue({
+        name: currentScene.name,
+        description: currentScene.description,
+        sceneType: currentScene.sceneType,
+      });
+    } else {
+      saveForm.resetFields();
+    }
+    setSaveModalVisible(true);
+  };
+
+  const handleSaveSubmit = async () => {
+    try {
+      const values = await saveForm.validateFields();
+      // Capture current camera position
+      let cameraConfig = null;
+      if (viewer) {
+        const pos = viewer.camera.positionCartographic;
+        const hpr = viewer.camera.headingPitchRoll;
+        cameraConfig = {
+          longitude: Cesium.Math.toDegrees(pos.longitude),
+          latitude: Cesium.Math.toDegrees(pos.latitude),
+          height: pos.height,
+          heading: Cesium.Math.toDegrees(hpr.heading),
+          pitch: Cesium.Math.toDegrees(hpr.pitch),
+          roll: Cesium.Math.toDegrees(hpr.roll),
+        };
+      }
+      const sceneData = {
+        ...values,
+        cameraConfig,
+        entityData: hydrologyData,
+      };
+      if (currentScene) {
+        await updateScene(currentScene.id, { ...currentScene, ...sceneData });
+        message.success('场景已更新');
+      } else {
+        const created = await createScene(sceneData);
+        setCurrentScene(created);
+        message.success('场景已保存');
+      }
+      setSaveModalVisible(false);
+    } catch (err) {
+      if (err.message) message.error('保存失败: ' + err.message);
+    }
+  };
 
   // Fetch all spatial data on mount
   useEffect(() => {
@@ -386,6 +493,24 @@ const VisualizationPage = () => {
           </div>
         )}
 
+        {/* Scene management */}
+        <div className="sidebar-section">
+          <h3><GlobalOutlined /> 场景管理</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button className="viz-btn" onClick={handleSaveScene}>
+              <SaveOutlined /> {currentScene ? '更新场景' : '保存场景'}
+            </button>
+            <button className="viz-btn" onClick={() => navigate('/scenes')}>
+              <FolderOpenOutlined /> 场景列表
+            </button>
+            {currentScene && (
+              <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>
+                当前: {currentScene.name}
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="sidebar-section">
           <h3>🗺️ 图层控制</h3>
           <button
@@ -442,6 +567,32 @@ const VisualizationPage = () => {
           </ul>
         </div>
       </div>
+
+      {/* Save scene modal */}
+      <Modal
+        title={currentScene ? '更新场景' : '保存场景'}
+        open={saveModalVisible}
+        onOk={handleSaveSubmit}
+        onCancel={() => setSaveModalVisible(false)}
+        okText="保存"
+        cancelText="取消"
+      >
+        <Form form={saveForm} layout="vertical">
+          <Form.Item name="name" label="场景名称" rules={[{ required: true, message: '请输入场景名称' }]}>
+            <Input placeholder="例如：长江中游流域模拟" />
+          </Form.Item>
+          <Form.Item name="description" label="描述">
+            <Input.TextArea rows={3} placeholder="场景描述（可选）" />
+          </Form.Item>
+          <Form.Item name="sceneType" label="场景类型" initialValue="custom">
+            <Select>
+              {SCENE_TYPE_OPTIONS.map(({ value, label }) => (
+                <Select.Option key={value} value={value}>{label}</Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

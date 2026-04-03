@@ -2,3 +2,4 @@
 export * from './common';
 export * from './model';
 export * from './task';
+export * from './visualization';
