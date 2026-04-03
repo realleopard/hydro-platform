@@ -51,6 +51,9 @@ public class TaskScheduler {
     // 线程池用于异步执行任务
     private final ExecutorService executorService;
 
+    // 资源监控调度器
+    private final ScheduledExecutorService statsScheduler = Executors.newScheduledThreadPool(2);
+
     // 任务取消标志
     private final Map<UUID, Boolean> cancelFlags = new ConcurrentHashMap<>();
 
@@ -416,6 +419,9 @@ public class TaskScheduler {
                 taskNodeMapper.appendLog(taskNode.getId(), logLine);
             };
 
+            // 启动资源监控线程
+            ScheduledFuture<?> statsFuture = startResourceMonitoring(taskNode, config.getTimeout());
+
             DockerExecutor.ExecutionResult result = dockerExecutor.executeContainer(
                     taskId.toString(),
                     nodeId,
@@ -429,6 +435,11 @@ public class TaskScheduler {
                     config.getTimeout(),
                     logCollector
             );
+
+            // 停止资源监控
+            if (statsFuture != null) {
+                statsFuture.cancel(false);
+            }
 
             // 更新节点执行结果
             taskNode.setContainerId(result.getContainerId());
@@ -605,6 +616,32 @@ public class TaskScheduler {
         }
 
         return limits;
+    }
+
+    /**
+     * 启动资源使用量监控，定期采集容器状态并更新到 TaskNode
+     */
+    private ScheduledFuture<?> startResourceMonitoring(TaskNode taskNode, int timeoutSeconds) {
+        return statsScheduler.scheduleAtFixedRate(() -> {
+            try {
+                if (taskNode.getContainerId() == null) return;
+                Map<String, Object> stats = dockerExecutor.getContainerStats(taskNode.getContainerId());
+                Map<String, Object> resourceUsage = new HashMap<>();
+                resourceUsage.put("containerStatus", stats.get("status"));
+                resourceUsage.put("timestamp", LocalDateTime.now().toString());
+                // 计算已运行时间（秒）
+                if (taskNode.getStartedAt() != null) {
+                    long elapsedSeconds = java.time.Duration.between(taskNode.getStartedAt(), LocalDateTime.now()).getSeconds();
+                    resourceUsage.put("elapsedSeconds", elapsedSeconds);
+                    resourceUsage.put("timeoutSeconds", timeoutSeconds);
+                    resourceUsage.put("progressEstimate", Math.min(100, (int)(elapsedSeconds * 100.0 / timeoutSeconds)));
+                }
+                taskNode.setResourceUsage(objectMapper.writeValueAsString(resourceUsage));
+                taskNodeMapper.updateById(taskNode);
+            } catch (Exception e) {
+                log.debug("资源采集失败: nodeId={}, error={}", taskNode.getId(), e.getMessage());
+            }
+        }, 5, 10, TimeUnit.SECONDS); // 5秒后开始，每10秒采集一次
     }
 
     /**

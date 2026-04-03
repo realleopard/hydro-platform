@@ -16,7 +16,12 @@ import {
   Row,
   Col,
   Statistic,
-  Empty
+  Empty,
+  Modal,
+  Form,
+  Input,
+  InputNumber,
+  Select
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -45,6 +50,8 @@ const WorkflowDetail = () => {
   const [loading, setLoading] = useState(true);
   const [workflow, setWorkflow] = useState(null);
   const [executionHistory, setExecutionHistory] = useState([]);
+  const [runModalVisible, setRunModalVisible] = useState(false);
+  const [runForm] = Form.useForm();
 
   useEffect(() => {
     if (id) {
@@ -80,13 +87,52 @@ const WorkflowDetail = () => {
     }
   };
 
-  const handleRun = async () => {
+  const handleRun = () => {
+    // Extract input parameters from workflow definition nodes
+    const definition = workflow.definition;
+    const inputParams = {};
+    if (definition?.nodes) {
+      for (const node of definition.nodes) {
+        if (node.type === 'input' || node.data?.model?.interfaces) {
+          const interfaces = node.data?.model?.interfaces;
+          if (interfaces) {
+            let inputs = [];
+            if (Array.isArray(interfaces)) {
+              inputs = interfaces.filter(i => i.type === 'input' && i.required);
+            } else if (interfaces.inputs) {
+              inputs = (interfaces.inputs || []).filter(i => i.required);
+            }
+            for (const inp of inputs) {
+              const key = `${node.id}.${inp.name}`;
+              inputParams[key] = {
+                label: `${node.data?.label || node.id} - ${inp.name}`,
+                dataType: inp.dataType,
+                description: inp.description,
+                required: true,
+              };
+            }
+          }
+        }
+      }
+    }
+    runForm.resetFields();
+    setRunModalVisible(true);
+  };
+
+  const handleRunSubmit = async () => {
     try {
-      const task = await taskService.createTask({ workflowId: id });
+      const values = await runForm.validateFields();
+      const task = await taskService.createTask({
+        workflowId: id,
+        inputs: JSON.stringify(values),
+      });
+      setRunModalVisible(false);
       message.success('工作流开始运行');
       navigate(`/tasks/${task.id}`);
     } catch (error) {
-      message.error('运行失败: ' + (error.message || '请稍后重试'));
+      if (error.message) {
+        message.error('运行失败: ' + error.message);
+      }
     }
   };
 
@@ -233,7 +279,7 @@ const WorkflowDetail = () => {
               <Space>
                 <Button
                   icon={<PlayCircleOutlined />}
-                  onClick={handleRun}
+                  onClick={() => setRunModalVisible(true)}
                   type="primary"
                   style={{ backgroundColor: '#52c41a' }}
                 >
@@ -347,6 +393,43 @@ const WorkflowDetail = () => {
           </Descriptions>
         </Card>
       </Spin>
+
+      {/* 运行参数配置弹窗 */}
+      <Modal
+        title={
+          <Space>
+            <PlayCircleOutlined style={{ color: '#52c41a' }} />
+            <span>运行工作流</span>
+            <span style={{ fontSize: 13, color: '#8c8c8c', fontWeight: 'normal' }}>
+              {workflow?.name}
+            </span>
+          </Space>
+        }
+        open={runModalVisible}
+        onOk={handleRunSubmit}
+        onCancel={() => setRunModalVisible(false)}
+        okText="开始运行"
+        cancelText="取消"
+        width={560}
+        destroyOnClose
+      >
+        <Form form={runForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="taskName" label="任务名称" rules={[{ required: true, message: '请输入任务名称' }]}>
+            <Input placeholder={`${workflow?.name || '工作流'} - ${new Date().toLocaleDateString('zh-CN')}`} />
+          </Form.Item>
+          <Form.Item name="description" label="任务描述">
+            <Input.TextArea rows={2} placeholder="可选：描述本次运行目的" />
+          </Form.Item>
+          <Divider style={{ margin: '12px 0' }}>输入参数</Divider>
+          <Form.Item name="inputs" label="输入数据 (JSON)">
+            <Input.TextArea
+              rows={6}
+              placeholder='{"rainfall": [0, 5, 10, 8, 3], "duration": 24}'
+              style={{ fontFamily: 'monospace' }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

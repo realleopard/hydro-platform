@@ -68,7 +68,9 @@ const TaskList = () => {
         page: query.page,
         size: query.pageSize,
         search: query.keyword || undefined,
-        status: query.status
+        status: query.status,
+        startDate: query.dateRange?.[0]?.format('YYYY-MM-DD'),
+        endDate: query.dateRange?.[1]?.format('YYYY-MM-DD'),
       };
 
       const response = await taskService.getTasks(params);

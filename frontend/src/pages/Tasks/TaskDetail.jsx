@@ -42,7 +42,9 @@ import {
   ReloadOutlined
 } from '@ant-design/icons';
 import { taskService } from '../../services/taskService';
+import { workflowService } from '../../services/workflowService';
 import { TASK_STATUS_OPTIONS, LOG_LEVEL_COLORS } from '../../types';
+import { WorkflowCanvas } from '../../components/WorkflowEditor';
 import styles from './TaskDetail.module.css';
 
 const { TabPane } = Tabs;
@@ -50,6 +52,25 @@ const { Search } = Input;
 const { Option } = Select;
 
 const TaskDetail = () => {
+  // Enrich workflow definition nodes with task execution status
+  const enrichDefinitionWithStatus = (def, nodes) => {
+    if (!def?.nodes) return def;
+    const statusMap = {};
+    (nodes || []).forEach(n => {
+      statusMap[n.nodeId] = n;
+    });
+    return {
+      ...def,
+      nodes: def.nodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          status: statusMap[node.id]?.status || 'pending',
+          ...(statusMap[node.id]?.outputs ? { outputs: statusMap[node.id].outputs } : {}),
+        },
+      })),
+    };
+  };
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -60,6 +81,7 @@ const TaskDetail = () => {
   const [wsConnected, setWsConnected] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [logFilter, setLogFilter] = useState('');
+  const [workflowDef, setWorkflowDef] = useState(null);
   const [logLevelFilter, setLogLevelFilter] = useState(['debug', 'info', 'warn', 'error']);
   const [error, setError] = useState(null);
   const logsEndRef = useRef(null);
@@ -81,6 +103,22 @@ const TaskDetail = () => {
       setTask(taskData);
       setLogs(logsData || []);
       setOutputs(outputsData || []);
+
+      // Fetch workflow definition for DAG visualization
+      if (taskData?.workflowId) {
+        try {
+          const wf = await workflowService.getWorkflowById(taskData.workflowId);
+          if (wf?.definition) {
+            let def = wf.definition;
+            if (typeof def === 'string') {
+              try { def = JSON.parse(def); } catch { def = null; }
+            }
+            setWorkflowDef(def);
+          }
+        } catch (e) {
+          console.warn('Failed to load workflow definition:', e);
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch task detail:', err);
       setError(err.message || '加载任务详情失败');
@@ -483,36 +521,55 @@ const TaskDetail = () => {
           </TabPane>
 
           <TabPane tab="执行节点" key="nodes" icon={<CodeOutlined />}>
-            {task.nodes?.length > 0 ? (
+            {workflowDef && task.nodes?.length > 0 ? (
+              <div>
+                {/* DAG visualization */}
+                <div style={{ height: 400, border: '1px solid #e8e8e8', borderRadius: 8, marginBottom: 16 }}>
+                  <WorkflowCanvas
+                    workflow={{
+                      definition: enrichDefinitionWithStatus(workflowDef, task.nodes),
+                    }}
+                    readOnly={true}
+                  />
+                </div>
+                {/* Node detail list */}
+                <Card size="small" title="节点执行详情">
+                  <Timeline mode="left">
+                    {task.nodes.map((node) => (
+                      <Timeline.Item
+                        key={node.id}
+                        color={node.status === 'completed' ? 'green' : node.status === 'running' ? 'blue' : node.status === 'failed' ? 'red' : 'gray'}
+                      >
+                        <Space>
+                          <span>{node.modelName || node.nodeName || node.nodeId}</span>
+                          {getNodeStatusTag(node.status)}
+                          {node.startedAt && (
+                            <span style={{ fontSize: 12, color: '#8c8c8c' }}>
+                              {new Date(node.startedAt).toLocaleString('zh-CN')}
+                            </span>
+                          )}
+                          {node.errorMessage && (
+                            <span style={{ fontSize: 12, color: '#ff4d4f' }}>- {node.errorMessage}</span>
+                          )}
+                        </Space>
+                      </Timeline.Item>
+                    ))}
+                  </Timeline>
+                </Card>
+              </div>
+            ) : task.nodes?.length > 0 ? (
               <Timeline mode="left">
                 {task.nodes.map((node) => (
                   <Timeline.Item
                     key={node.id}
                     color={node.status === 'completed' ? 'green' : node.status === 'running' ? 'blue' : node.status === 'failed' ? 'red' : 'gray'}
                   >
-                    <Card
-                      size="small"
-                      className={styles.nodeCard}
-                      title={
-                        <Space>
-                          <span>{node.modelName}</span>
-                          {getNodeStatusTag(node.status)}
-                        </Space>
-                      }
-                    >
+                    <Card size="small" className={styles.nodeCard} title={<Space><span>{node.modelName}</span>{getNodeStatusTag(node.status)}</Space>}>
                       <Descriptions column={2} size="small">
                         <Descriptions.Item label="节点ID">{node.nodeId}</Descriptions.Item>
-                        <Descriptions.Item label="重试次数">{node.retryCount}/{node.maxRetries}</Descriptions.Item>
-                        {node.startedAt && (
-                          <Descriptions.Item label="开始时间">
-                            {new Date(node.startedAt).toLocaleString('zh-CN')}
-                          </Descriptions.Item>
-                        )}
-                        {node.completedAt && (
-                          <Descriptions.Item label="完成时间">
-                            {new Date(node.completedAt).toLocaleString('zh-CN')}
-                          </Descriptions.Item>
-                        )}
+                        <Descriptions.Item label="重试次数">{node.retryCount || 0}/{node.maxRetries || 3}</Descriptions.Item>
+                        {node.startedAt && <Descriptions.Item label="开始时间">{new Date(node.startedAt).toLocaleString('zh-CN')}</Descriptions.Item>}
+                        {node.completedAt && <Descriptions.Item label="完成时间">{new Date(node.completedAt).toLocaleString('zh-CN')}</Descriptions.Item>}
                       </Descriptions>
                     </Card>
                   </Timeline.Item>
