@@ -179,6 +179,20 @@ export const modelService = {
       }>
     >(`/models/${id}/versions`);
   },
+
+  /**
+   * 获取模型评价列表
+   */
+  getModelReviews: async (id: string): Promise<any[]> => {
+    return api.get<any[]>(`/models/${id}/reviews`);
+  },
+
+  /**
+   * 创建模型评价
+   */
+  createModelReview: async (id: string, data: { rating: number; comment: string }): Promise<any> => {
+    return api.post<any>(`/models/${id}/reviews`, data);
+  },
 };
 
 export default modelService;

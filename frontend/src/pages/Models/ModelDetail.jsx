@@ -16,7 +16,15 @@ import {
   Statistic,
   Badge,
   Skeleton,
-  Alert
+  Alert,
+  Modal,
+  Form,
+  InputNumber,
+  Rate,
+  Progress,
+  List,
+  Avatar,
+  Input,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -28,9 +36,15 @@ import {
   HistoryOutlined,
   FileTextOutlined,
   BranchesOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  CheckCircleOutlined,
+  PlusOutlined,
+  ExperimentOutlined,
+  TrophyOutlined,
+  CalculatorOutlined,
 } from '@ant-design/icons';
 import { modelService } from '../../services/modelService';
+import { validationService } from '../../services/validationService';
 import {
   MODEL_CATEGORY_OPTIONS,
   MODEL_STATUS_OPTIONS,
@@ -40,6 +54,25 @@ import styles from './ModelDetail.module.css';
 
 const { TabPane } = Tabs;
 
+// NSE / R² 等级评定
+const getNSEGrade = (value) => {
+  if (value == null) return null;
+  if (value >= 0.9) return { label: '优秀', color: 'green' };
+  if (value >= 0.75) return { label: '良好', color: 'blue' };
+  if (value >= 0.5) return { label: '一般', color: 'orange' };
+  if (value >= 0.0) return { label: '差', color: 'red' };
+  return { label: '不满意', color: 'volcano' };
+};
+
+// RMSE 等级评定（越小越好）
+const getRMSEGrade = (value) => {
+  if (value == null) return null;
+  if (value <= 0.1) return { label: '优秀', color: 'green' };
+  if (value <= 0.3) return { label: '良好', color: 'blue' };
+  if (value <= 0.5) return { label: '一般', color: 'orange' };
+  return { label: '差', color: 'red' };
+};
+
 const ModelDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -48,6 +81,14 @@ const ModelDetail = () => {
   const [versions, setVersions] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [error, setError] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [validations, setValidations] = useState([]);
+  const [validationModalVisible, setValidationModalVisible] = useState(false);
+  const [validationForm] = Form.useForm();
+  const [validationResult, setValidationResult] = useState(null);
+  const [validationCalculating, setValidationCalculating] = useState(false);
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [reviewForm] = Form.useForm();
 
   // 获取模型详情
   const fetchModelDetail = useCallback(async () => {
@@ -111,6 +152,25 @@ const ModelDetail = () => {
   useEffect(() => {
     fetchModelDetail();
   }, [fetchModelDetail]);
+
+  // 获取评价和验证数据
+  const fetchReviewsAndValidations = useCallback(async () => {
+    if (!id) return;
+    try {
+      const [reviewsData, validationsData] = await Promise.all([
+        modelService.getModelReviews(id).catch(() => []),
+        validationService.getModelValidations(id).catch(() => []),
+      ]);
+      setReviews(Array.isArray(reviewsData) ? reviewsData : reviewsData?.data || []);
+      setValidations(Array.isArray(validationsData) ? validationsData : validationsData?.data || []);
+    } catch (err) {
+      console.warn('Failed to fetch reviews/validations:', err);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchReviewsAndValidations();
+  }, [fetchReviewsAndValidations]);
 
   // 获取状态标签
   const getStatusTag = (status) => {
@@ -440,8 +500,185 @@ const ModelDetail = () => {
             )}
           </TabPane>
 
+          <TabPane tab="验证指标" key="validation" icon={<ExperimentOutlined />}>
+            <div style={{ padding: '0 0 16px' }}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  validationForm.resetFields();
+                  setValidationResult(null);
+                  setValidationModalVisible(true);
+                }}
+                style={{ marginBottom: 16 }}
+              >
+                计算验证指标
+              </Button>
+
+              {validationResult && (
+                <Card title="验证结果" style={{ marginBottom: 16 }}>
+                  <Row gutter={16}>
+                    {[
+                      { label: 'NSE', value: validationResult.nse, desc: 'Nash-Sutcliffe效率系数', grade: getNSEGrade(validationResult.nse) },
+                      { label: 'RMSE', value: validationResult.rmse, desc: '均方根误差', grade: getRMSEGrade(validationResult.rmse) },
+                      { label: 'MAE', value: validationResult.mae, desc: '平均绝对误差' },
+                      { label: 'R²', value: validationResult.r2, desc: '决定系数', grade: getNSEGrade(validationResult.r2) },
+                      { label: 'KGE', value: validationResult.kge, desc: 'Kling-Gupta效率' },
+                      { label: 'PBIAS', value: validationResult.pbias, desc: '百分比偏差' },
+                    ].map(m => (
+                      <Col span={8} key={m.label} style={{ marginBottom: 12 }}>
+                        <Card size="small">
+                          <Statistic
+                            title={m.label}
+                            value={typeof m.value === 'number' ? m.value.toFixed(4) : '-'}
+                            suffix={m.grade && <Tag color={m.grade.color}>{m.grade.label}</Tag>}
+                          />
+                          <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>{m.desc}</div>
+                        </Card>
+                      </Col>
+                    ))}
+                  </Row>
+                  {validationResult.sampleCount && (
+                    <div style={{ marginTop: 8, color: '#8c8c8c' }}>
+                      样本数: {validationResult.sampleCount}
+                    </div>
+                  )}
+                </Card>
+              )}
+
+              <Card title="历史验证记录" size="small">
+                {validations.length > 0 ? (
+                  <Timeline>
+                    {validations.map((v) => (
+                      <Timeline.Item key={v.id} color={
+                        v.status === 'completed' ? 'green' : v.status === 'running' ? 'blue' : v.status === 'failed' ? 'red' : 'gray'
+                      }>
+                        <Space direction="vertical" size={4}>
+                          <Space>
+                            <Tag color={v.status === 'completed' ? 'success' : 'default'}>{v.status}</Tag>
+                            <span style={{ fontSize: 12, color: '#8c8c8c' }}>
+                              {v.createdAt ? new Date(v.createdAt).toLocaleString('zh-CN') : '-'}
+                            </span>
+                          </Space>
+                          {v.metrics && (
+                            <div style={{ fontSize: 12 }}>
+                              NSE: {v.metrics.nse?.toFixed(4)} | RMSE: {v.metrics.rmse?.toFixed(4)} | R²: {v.metrics.r2?.toFixed(4)}
+                            </div>
+                          )}
+                        </Space>
+                      </Timeline.Item>
+                    ))}
+                  </Timeline>
+                ) : (
+                  <Empty description="暂无验证记录" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                )}
+              </Card>
+            </div>
+
+            <Modal
+              title="计算验证指标"
+              open={validationModalVisible}
+              onOk={async () => {
+                try {
+                  const values = await validationForm.validateFields();
+                  setValidationCalculating(true);
+                  const observed = values.observed.split(/[,\n\s]+/).map(Number).filter(n => !isNaN(n));
+                  const simulated = values.simulated.split(/[,\n\s]+/).map(Number).filter(n => !isNaN(n));
+                  if (observed.length !== simulated.length) {
+                    message.error('观测值和模拟值数量必须相同');
+                    return;
+                  }
+                  const result = await validationService.calculateDirectly({ observed, simulated });
+                  setValidationResult(result);
+                  setValidationModalVisible(false);
+                  message.success('验证指标计算完成');
+                } catch (err) {
+                  if (err.message) message.error('计算失败: ' + err.message);
+                } finally {
+                  setValidationCalculating(false);
+                }
+              }}
+              onCancel={() => setValidationModalVisible(false)}
+              confirmLoading={validationCalculating}
+              okText="计算"
+              width={600}
+            >
+              <Form form={validationForm} layout="vertical">
+                <Form.Item name="observed" label="观测值（逗号或换行分隔）" rules={[{ required: true, message: '请输入观测值' }]}>
+                  <Input.TextArea rows={4} placeholder="1.2, 3.4, 5.6, 7.8, ..." />
+                </Form.Item>
+                <Form.Item name="simulated" label="模拟值（逗号或换行分隔）" rules={[{ required: true, message: '请输入模拟值' }]}>
+                  <Input.TextArea rows={4} placeholder="1.1, 3.5, 5.4, 8.0, ..." />
+                </Form.Item>
+              </Form>
+            </Modal>
+          </TabPane>
+
           <TabPane tab="评价" key="reviews" icon={<StarOutlined />}>
-            <Empty description="暂无评价" />
+            <div style={{ padding: '0 0 16px' }}>
+              <Button
+                type="primary"
+                icon={<EditOutlined />}
+                onClick={() => {
+                  reviewForm.resetFields();
+                  setReviewModalVisible(true);
+                }}
+                style={{ marginBottom: 16 }}
+              >
+                写评价
+              </Button>
+
+              {reviews.length > 0 ? (
+                <List
+                  dataSource={reviews}
+                  renderItem={(review) => (
+                    <List.Item>
+                      <List.Item.Meta
+                        avatar={<Avatar>{(review.userName || '用')[0]}</Avatar>}
+                        title={
+                          <Space>
+                            <Rate disabled value={review.rating} style={{ fontSize: 14 }} />
+                            <span style={{ color: '#8c8c8c', fontSize: 12 }}>
+                              {review.createdAt ? new Date(review.createdAt).toLocaleString('zh-CN') : ''}
+                            </span>
+                          </Space>
+                        }
+                        description={review.comment}
+                      />
+                    </List.Item>
+                  )}
+                />
+              ) : (
+                <Empty description="暂无评价" />
+              )}
+            </div>
+
+            <Modal
+              title="写评价"
+              open={reviewModalVisible}
+              onOk={async () => {
+                try {
+                  const values = await reviewForm.validateFields();
+                  await modelService.createModelReview(id, values);
+                  setReviewModalVisible(false);
+                  message.success('评价已提交');
+                  fetchReviewsAndValidations();
+                } catch (err) {
+                  if (err.message) message.error('提交失败: ' + err.message);
+                }
+              }}
+              onCancel={() => setReviewModalVisible(false)}
+              okText="提交"
+            >
+              <Form form={reviewForm} layout="vertical">
+                <Form.Item name="rating" label="评分" rules={[{ required: true, message: '请选择评分' }]}>
+                  <Rate />
+                </Form.Item>
+                <Form.Item name="comment" label="评价内容" rules={[{ required: true, message: '请输入评价内容' }]}>
+                  <Input.TextArea rows={4} placeholder="请输入您对该模型的评价" />
+                </Form.Item>
+              </Form>
+            </Modal>
           </TabPane>
         </Tabs>
       </Card>
