@@ -13,6 +13,7 @@ import {
   Modal,
   Form,
   Switch,
+  Empty,
 } from 'antd';
 import {
   UserOutlined,
@@ -23,6 +24,7 @@ import {
   TeamOutlined,
 } from '@ant-design/icons';
 import { userService } from '../../services/userService';
+import PageHeader from '../../components/Common/PageHeader';
 import { ROLE_OPTIONS, ROLE_MAP } from '../../types';
 
 const { Title } = Typography;
@@ -186,33 +188,35 @@ const UserList = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>
-          <TeamOutlined /> 用户管理
-        </Title>
-        <Space>
-          <Input
-            placeholder="搜索用户名/邮箱"
-            prefix={<SearchOutlined />}
-            allowClear
-            style={{ width: 200 }}
-            value={query.search}
-            onChange={(e) => setQuery({ ...query, search: e.target.value, page: 1 })}
-          />
-          <Select
-            allowClear
-            placeholder="角色筛选"
-            style={{ width: 120 }}
-            value={query.role}
-            onChange={(val) => setQuery({ ...query, role: val, page: 1 })}
-          >
-            {ROLE_OPTIONS.map(({ value, label }) => (
-              <Select.Option key={value} value={value}>{label}</Select.Option>
-            ))}
-          </Select>
-          <Button icon={<ReloadOutlined />} onClick={fetchUsers}>刷新</Button>
-        </Space>
-      </div>
+      <PageHeader
+        title="用户管理"
+        icon={<TeamOutlined />}
+        breadcrumbs={[{ label: '用户管理' }]}
+        extra={
+          <Space>
+            <Input
+              placeholder="搜索用户名/邮箱"
+              prefix={<SearchOutlined />}
+              allowClear
+              style={{ width: 200 }}
+              value={query.search}
+              onChange={(e) => setQuery({ ...query, search: e.target.value, page: 1 })}
+            />
+            <Select
+              allowClear
+              placeholder="角色筛选"
+              style={{ width: 120 }}
+              value={query.role}
+              onChange={(val) => setQuery({ ...query, role: val, page: 1 })}
+            >
+              {ROLE_OPTIONS.map(({ value, label }) => (
+                <Select.Option key={value} value={value}>{label}</Select.Option>
+              ))}
+            </Select>
+            <Button icon={<ReloadOutlined />} onClick={fetchUsers}>刷新</Button>
+          </Space>
+        }
+      />
 
       <Card>
         <Table
@@ -220,6 +224,9 @@ const UserList = () => {
           columns={columns}
           rowKey="id"
           loading={loading}
+          locale={{
+            emptyText: <Empty description="暂无用户数据" />,
+          }}
           pagination={{
             current: query.page,
             pageSize: query.pageSize,

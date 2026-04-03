@@ -9,11 +9,11 @@ import {
   Space,
   message,
   Popconfirm,
-  Typography,
   Modal,
   Form,
   Row,
   Col,
+  Empty,
 } from 'antd';
 import {
   PlusOutlined,
@@ -25,14 +25,13 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { datasetService } from '../../services/datasetService';
+import PageHeader from '../../components/Common/PageHeader';
 import {
   DATASET_DATA_TYPE_OPTIONS,
   DATASET_DATA_TYPE_MAP,
   DATASET_VISIBILITY_OPTIONS,
   DATASET_VISIBILITY_MAP,
 } from '../../types';
-
-const { Title } = Typography;
 
 const DatasetList = () => {
   const navigate = useNavigate();
@@ -181,47 +180,49 @@ const DatasetList = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>
-          <DatabaseOutlined /> 数据集管理
-        </Title>
-        <Space>
-          <Input
-            placeholder="搜索数据集"
-            prefix={<SearchOutlined />}
-            allowClear
-            style={{ width: 200 }}
-            value={query.keyword}
-            onChange={(e) => setQuery({ ...query, keyword: e.target.value })}
-          />
-          <Select
-            allowClear
-            placeholder="数据类型"
-            style={{ width: 130 }}
-            value={query.dataType}
-            onChange={(val) => setQuery({ ...query, dataType: val })}
-          >
-            {DATASET_DATA_TYPE_OPTIONS.map(({ value, label }) => (
-              <Select.Option key={value} value={value}>{label}</Select.Option>
-            ))}
-          </Select>
-          <Select
-            allowClear
-            placeholder="可见性"
-            style={{ width: 100 }}
-            value={query.visibility}
-            onChange={(val) => setQuery({ ...query, visibility: val })}
-          >
-            {DATASET_VISIBILITY_OPTIONS.map(({ value, label }) => (
-              <Select.Option key={value} value={value}>{label}</Select.Option>
-            ))}
-          </Select>
-          <Button icon={<ReloadOutlined />} onClick={fetchDatasets}>刷新</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalVisible(true)}>
-            新建数据集
-          </Button>
-        </Space>
-      </div>
+      <PageHeader
+        title="数据集管理"
+        icon={<DatabaseOutlined />}
+        breadcrumbs={[{ label: '数据集管理' }]}
+        extra={
+          <Space>
+            <Input
+              placeholder="搜索数据集"
+              prefix={<SearchOutlined />}
+              allowClear
+              style={{ width: 200 }}
+              value={query.keyword}
+              onChange={(e) => setQuery({ ...query, keyword: e.target.value })}
+            />
+            <Select
+              allowClear
+              placeholder="数据类型"
+              style={{ width: 130 }}
+              value={query.dataType}
+              onChange={(val) => setQuery({ ...query, dataType: val })}
+            >
+              {DATASET_DATA_TYPE_OPTIONS.map(({ value, label }) => (
+                <Select.Option key={value} value={value}>{label}</Select.Option>
+              ))}
+            </Select>
+            <Select
+              allowClear
+              placeholder="可见性"
+              style={{ width: 100 }}
+              value={query.visibility}
+              onChange={(val) => setQuery({ ...query, visibility: val })}
+            >
+              {DATASET_VISIBILITY_OPTIONS.map(({ value, label }) => (
+                <Select.Option key={value} value={value}>{label}</Select.Option>
+              ))}
+            </Select>
+            <Button icon={<ReloadOutlined />} onClick={fetchDatasets}>刷新</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalVisible(true)}>
+              新建数据集
+            </Button>
+          </Space>
+        }
+      />
 
       <Card>
         <Table
@@ -229,6 +230,15 @@ const DatasetList = () => {
           columns={columns}
           rowKey="id"
           loading={loading}
+          locale={{
+            emptyText: (
+              <Empty description="暂无数据集">
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalVisible(true)}>
+                  新建数据集
+                </Button>
+              </Empty>
+            ),
+          }}
           pagination={{
             current: query.page,
             pageSize: query.pageSize,

@@ -4,6 +4,7 @@ import { UserOutlined, EditOutlined, LockOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../stores/authStore';
 import { authService } from '../../services/authService';
 import { userService } from '../../services/userService';
+import PageHeader from '../../components/Common/PageHeader';
 import { ROLE_MAP } from '../../types';
 
 const Profile = () => {
@@ -57,6 +58,18 @@ const Profile = () => {
 
   return (
     <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
+      <PageHeader
+        title="个人中心"
+        icon={<UserOutlined />}
+        breadcrumbs={[{ label: '个人中心' }]}
+        extra={
+          <Space>
+            <Button icon={<EditOutlined />} onClick={openEditModal}>编辑资料</Button>
+            <Button icon={<LockOutlined />} onClick={() => setPasswordModalVisible(true)}>修改密码</Button>
+          </Space>
+        }
+      />
+
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 32 }}>
           <Avatar size={80} icon={<UserOutlined />} src={user.avatarUrl} />
@@ -66,12 +79,6 @@ const Profile = () => {
               @{user.username}
               {roleInfo && <span> · {roleInfo.label}</span>}
             </p>
-          </div>
-          <div style={{ marginLeft: 'auto' }}>
-            <Space>
-              <Button icon={<EditOutlined />} onClick={openEditModal}>编辑资料</Button>
-              <Button icon={<LockOutlined />} onClick={() => setPasswordModalVisible(true)}>修改密码</Button>
-            </Space>
           </div>
         </div>
 

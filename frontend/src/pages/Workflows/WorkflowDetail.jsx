@@ -317,7 +317,7 @@ const WorkflowDetail = () => {
 
         {/* 统计信息 */}
         <Row gutter={16} className={styles.statsRow}>
-          <Col span={6}>
+          <Col xs={12} sm={12} md={6}>
             <Card>
               <Statistic
                 title="节点数量"
@@ -326,7 +326,7 @@ const WorkflowDetail = () => {
               />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col xs={12} sm={12} md={6}>
             <Card>
               <Statistic
                 title="运行次数"
@@ -335,7 +335,7 @@ const WorkflowDetail = () => {
               />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col xs={12} sm={12} md={6}>
             <Card>
               <Statistic
                 title="创建时间"
@@ -344,7 +344,7 @@ const WorkflowDetail = () => {
               />
             </Card>
           </Col>
-          <Col span={6}>
+          <Col xs={12} sm={12} md={6}>
             <Card>
               <Statistic
                 title="作者"

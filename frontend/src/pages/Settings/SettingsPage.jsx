@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Tabs, Table, Tag, Typography, Button, message } from 'antd';
 import {
-  SettingOutlined,
   SafetyCertificateOutlined,
   AuditOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
 import { ROLE_OPTIONS } from '../../types';
+import PageHeader from '../../components/Common/PageHeader';
 
-const { Title } = Typography;
 const { TabPane } = Tabs;
 
 const PERMISSION_GROUPS = [
@@ -173,9 +172,10 @@ const SettingsPage = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <Title level={3} style={{ marginBottom: 24 }}>
-        <SettingOutlined /> 系统设置
-      </Title>
+      <PageHeader
+        title="系统设置"
+        breadcrumbs={[{ label: '系统设置' }]}
+      />
 
       <Card>
         <Tabs activeKey={activeTab} onChange={setActiveTab}>
@@ -187,6 +187,7 @@ const SettingsPage = () => {
               pagination={false}
               bordered
               size="small"
+              scroll={{ x: 800 }}
             />
           </TabPane>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { ConfigProvider, Layout, Menu, Badge, Button, Avatar, Dropdown, Space, Typography, Spin, Card, Row, Col, Statistic } from 'antd';
+import { ConfigProvider, Layout, Menu, Button, Avatar, Dropdown, Space, Typography, Spin, Card, Row, Col, Statistic, Alert } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import {
   DashboardOutlined,
@@ -73,6 +73,15 @@ const PrivateRoute = ({ children }) => {
   return children;
 };
 
+// 管理员路由守卫
+const AdminRoute = ({ children }) => {
+  const { user } = useAuthStore();
+  if (user?.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
+
 // 公开路由（已登录用户重定向到首页）
 const PublicRoute = ({ children }) => {
   const { isAuthenticated } = useAuthStore();
@@ -88,8 +97,10 @@ const PublicRoute = ({ children }) => {
 const Navigation = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
 
-  const menuItems = [
+  const allMenuItems = [
     { key: '/', icon: <DashboardOutlined />, label: '控制台' },
     { key: '/models', icon: <AppstoreOutlined />, label: '模型管理' },
     { key: '/tasks', icon: <NodeIndexOutlined />, label: '任务管理' },
@@ -97,10 +108,12 @@ const Navigation = () => {
     { key: '/visualization', icon: <BarChartOutlined />, label: '可视化' },
     { key: '/scenes', icon: <GlobalOutlined />, label: '场景管理' },
     { key: '/datasets', icon: <DatabaseOutlined />, label: '数据集管理' },
-    { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
+    { key: '/users', icon: <TeamOutlined />, label: '用户管理', adminOnly: true },
     { key: '/teaching', icon: <ExperimentOutlined />, label: '教学工具' },
-    { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
+    { key: '/settings', icon: <SettingOutlined />, label: '系统设置', adminOnly: true },
   ];
+
+  const menuItems = allMenuItems.filter(item => !item.adminOnly || isAdmin);
 
   const getSelectedKey = () => {
     const path = location.pathname;
@@ -147,7 +160,16 @@ const MainLayout = ({ children }) => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider trigger={null} collapsible collapsed={collapsed} theme="dark" width={220}>
+      <Sider
+        trigger={null}
+        collapsible
+        collapsed={collapsed}
+        theme="dark"
+        width={220}
+        breakpoint="lg"
+        collapsedWidth={window.innerWidth < 768 ? 0 : 80}
+        onBreakpoint={(broken) => { if (broken && !collapsed) setCollapsed(true); }}
+      >
         <div className="logo">
           <span className="logo-icon">🌊</span>
           {!collapsed && <span className="logo-text">Hydro Platform</span>}
@@ -165,9 +187,7 @@ const MainLayout = ({ children }) => {
           />
           <div className="header-right">
             <Space size="large">
-              <Badge count={2} size="small">
-                <Button type="text" icon={<BellOutlined />} />
-              </Badge>
+              <Button type="text" icon={<BellOutlined />} />
               <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
                 <Space style={{ cursor: 'pointer' }}>
                   <Avatar icon={<UserOutlined />} src={user?.avatar} />
@@ -199,17 +219,17 @@ const Dashboard = () => {
     workflowTotal: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true);
+      setLoadError(false);
       try {
         const [taskStats, modelResult, workflowResult] = await Promise.all([
-          taskService.getTaskStatistics().catch(() => ({
-            total: 0, pending: 0, running: 0, completed: 0, failed: 0, cancelled: 0,
-          })),
-          modelService.getModels({ page: 1, pageSize: 1 }).catch(() => ({ total: 0 })),
-          workflowService.getWorkflows({ page: 1, pageSize: 1 }).catch(() => ({ total: 0 })),
+          taskService.getTaskStatistics(),
+          modelService.getModels({ page: 1, pageSize: 1 }),
+          workflowService.getWorkflows({ page: 1, pageSize: 1 }),
         ]);
         setStats({
           modelTotal: modelResult.total || 0,
@@ -219,6 +239,7 @@ const Dashboard = () => {
         });
       } catch (error) {
         console.error('Failed to load dashboard stats:', error);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -230,6 +251,15 @@ const Dashboard = () => {
     <div className="dashboard-container">
       <h1>控制台</h1>
       <p>欢迎使用流域水系统模拟模型平台</p>
+      {loadError && (
+        <Alert
+          type="warning"
+          message="部分数据加载失败"
+          description="无法获取最新统计数据，请稍后刷新重试"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
       <Spin spinning={loading}>
         <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
           <Col xs={24} sm={12} md={6}>
@@ -299,7 +329,7 @@ const AppContent = () => {
       <Route path="/scenes" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><SceneList /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="/datasets" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><DatasetList /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="/datasets/:id" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><DatasetDetail /></React.Suspense></MainLayout></PrivateRoute>} />
-      <Route path="/users" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><UserList /></React.Suspense></MainLayout></PrivateRoute>} />
+      <Route path="/users" element={<PrivateRoute><AdminRoute><MainLayout><React.Suspense fallback={<Loading />}><UserList /></React.Suspense></MainLayout></AdminRoute></PrivateRoute>} />
       <Route path="/profile" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><Profile /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="/register" element={<PublicRoute><React.Suspense fallback={<Loading fullscreen />}><Register /></React.Suspense></PublicRoute>} />
       <Route path="/teaching" element={<PrivateRoute><MainLayout><Teaching /></MainLayout></PrivateRoute>} />
