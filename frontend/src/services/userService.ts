@@ -1,11 +1,6 @@
 import api from './api';
 
 export const userService = {
-  getCurrentUser: () => api.get('/auth/me'),
-
-  changePassword: (data: { oldPassword: string; newPassword: string }) =>
-    api.post('/auth/change-password', data),
-
   getUsers: (params?: Record<string, unknown>) =>
     api.get('/users', params),
 

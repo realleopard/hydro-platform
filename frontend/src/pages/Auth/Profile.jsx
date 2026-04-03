@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Descriptions, Button, Space, Modal, Form, Input, Avatar, message, Upload, Row, Col } from 'antd';
-import { UserOutlined, EditOutlined, LockOutlined, UploadOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Card, Descriptions, Button, Space, Modal, Form, Input, Avatar, message } from 'antd';
+import { UserOutlined, EditOutlined, LockOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../stores/authStore';
+import { authService } from '../../services/authService';
 import { userService } from '../../services/userService';
 import { ROLE_MAP } from '../../types';
 
@@ -17,6 +18,9 @@ const Profile = () => {
       const values = await editForm.validateFields();
       await userService.updateUser(user.id, values);
       updateUser({ ...user, ...values });
+      // Also refresh the store's user snapshot
+      const updated = await authService.getCurrentUser();
+      if (updated) updateUser(updated);
       message.success('资料已更新');
       setEditModalVisible(false);
     } catch (error) {
@@ -31,10 +35,7 @@ const Profile = () => {
         message.error('两次输入的密码不一致');
         return;
       }
-      await userService.changePassword({
-        oldPassword: values.oldPassword,
-        newPassword: values.newPassword,
-      });
+      await authService.changePassword(values.oldPassword, values.newPassword);
       message.success('密码已修改');
       setPasswordModalVisible(false);
       passwordForm.resetFields();
@@ -45,7 +46,7 @@ const Profile = () => {
 
   const openEditModal = () => {
     editForm.setFieldsValue({
-      fullName: user.fullName || user.realName || '',
+      fullName: user.fullName || '',
       email: user.email || '',
       organization: user.organization || '',
     });
@@ -58,9 +59,9 @@ const Profile = () => {
     <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 32 }}>
-          <Avatar size={80} icon={<UserOutlined />} src={user.avatarUrl || user.avatar} />
+          <Avatar size={80} icon={<UserOutlined />} src={user.avatarUrl} />
           <div>
-            <h2 style={{ margin: 0 }}>{user.fullName || user.realName || user.username}</h2>
+            <h2 style={{ margin: 0 }}>{user.fullName || user.username}</h2>
             <p style={{ margin: '4px 0 0', color: '#888' }}>
               @{user.username}
               {roleInfo && <span> · {roleInfo.label}</span>}
@@ -77,7 +78,7 @@ const Profile = () => {
         <Descriptions column={2} bordered size="small">
           <Descriptions.Item label="用户名">{user.username}</Descriptions.Item>
           <Descriptions.Item label="邮箱">{user.email || '--'}</Descriptions.Item>
-          <Descriptions.Item label="姓名">{user.fullName || user.realName || '--'}</Descriptions.Item>
+          <Descriptions.Item label="姓名">{user.fullName || '--'}</Descriptions.Item>
           <Descriptions.Item label="角色">
             {roleInfo ? <span style={{ color: roleInfo.color }}>{roleInfo.label}</span> : user.role}
           </Descriptions.Item>

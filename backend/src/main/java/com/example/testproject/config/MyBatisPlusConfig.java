@@ -40,12 +40,12 @@ public class MyBatisPlusConfig {
      * Mybatis SqlSessionFactory 配置 UUID 类型处理器
      */
     @Bean
-    public MybatisSqlSessionFactoryBean sqlSessionFactory(DataSource dataSource) throws Exception {
+    public MybatisSqlSessionFactoryBean sqlSessionFactory(DataSource dataSource,
+                                                          MybatisPlusInterceptor mybatisPlusInterceptor) throws Exception {
         MybatisSqlSessionFactoryBean sessionFactory = new MybatisSqlSessionFactoryBean();
         sessionFactory.setDataSource(dataSource);
-
-        // 注册 UUID 类型处理器
         sessionFactory.setTypeHandlers(new UUIDTypeHandler());
+        sessionFactory.setPlugins(mybatisPlusInterceptor);
 
         return sessionFactory;
     }

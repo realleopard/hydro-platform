@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Tabs, Table, Tag, Descriptions, Typography, Space, Button, message } from 'antd';
+import { Card, Tabs, Table, Tag, Typography, Button, message } from 'antd';
 import {
   SettingOutlined,
   SafetyCertificateOutlined,
   AuditOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
-import { ROLE_OPTIONS, ROLE_MAP } from '../../types';
+import { ROLE_OPTIONS } from '../../types';
 
 const { Title } = Typography;
 const { TabPane } = Tabs;
 
-// 权限定义
 const PERMISSION_GROUPS = [
   {
     group: '用户管理',
@@ -67,7 +66,6 @@ const PERMISSION_GROUPS = [
   },
 ];
 
-// 角色默认权限矩阵
 const ROLE_PERMISSIONS = {
   admin: PERMISSION_GROUPS.flatMap(g => g.permissions.map(p => p.code)),
   expert: [
@@ -120,7 +118,6 @@ const SettingsPage = () => {
     if (activeTab === 'audit') fetchAuditLogs();
   }, [activeTab]);
 
-  // 角色权限矩阵列
   const rolePermissionColumns = [
     {
       title: '权限组',
@@ -153,7 +150,6 @@ const SettingsPage = () => {
     })),
   ];
 
-  // 展平权限数据
   const permissionTableData = [];
   PERMISSION_GROUPS.forEach((group) => {
     group.permissions.forEach((perm, idx) => {
@@ -166,7 +162,6 @@ const SettingsPage = () => {
     });
   });
 
-  // 审计日志列
   const auditColumns = [
     { title: '时间', dataIndex: 'timestamp', key: 'timestamp', width: 180, render: (t) => new Date(t).toLocaleString('zh-CN') },
     { title: '用户', dataIndex: 'username', key: 'username', width: 120 },
@@ -185,11 +180,7 @@ const SettingsPage = () => {
       <Card>
         <Tabs activeKey={activeTab} onChange={setActiveTab}>
           <TabPane tab={<span><SafetyCertificateOutlined /> 角色权限</span>} key="roles">
-            <div style={{ marginBottom: 16 }}>
-              <Space>
-                <span>角色权限矩阵 — 管理系统各角色的默认权限分配</span>
-              </Space>
-            </div>
+            <p style={{ marginBottom: 16 }}>角色权限矩阵 — 管理系统各角色的默认权限分配</p>
             <Table
               dataSource={permissionTableData}
               columns={rolePermissionColumns}
