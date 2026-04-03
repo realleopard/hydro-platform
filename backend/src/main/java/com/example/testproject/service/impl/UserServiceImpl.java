@@ -65,4 +65,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             updateById(user);
         }
     }
+
+    @Override
+    @Transactional
+    public void updatePassword(UUID userId, String newPassword) {
+        User user = getById(userId);
+        if (user != null) {
+            user.setPasswordHash(passwordEncoder.encode(newPassword));
+            updateById(user);
+        }
+    }
 }

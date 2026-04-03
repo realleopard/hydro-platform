@@ -35,4 +35,9 @@ public interface UserService extends IService<User> {
      * 更新最后登录时间
      */
     void updateLastLogin(UUID userId);
+
+    /**
+     * 修改密码
+     */
+    void updatePassword(UUID userId, String newPassword);
 }

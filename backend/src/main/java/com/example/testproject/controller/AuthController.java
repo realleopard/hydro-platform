@@ -6,6 +6,7 @@ import com.example.testproject.dto.LoginResponse;
 import com.example.testproject.dto.RegisterRequest;
 import com.example.testproject.entity.User;
 import com.example.testproject.security.JwtUtil;
+import com.example.testproject.security.CurrentUser;
 import com.example.testproject.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -101,6 +102,40 @@ public class AuthController {
     @PostMapping("/logout")
     public Result<Void> logout() {
         // JWT无状态，客户端删除token即可
+        return Result.success(null);
+    }
+
+    /**
+     * 获取当前用户信息
+     */
+    @GetMapping("/me")
+    public Result<User> getCurrentUser(@CurrentUser UUID userId) {
+        User user = userService.getById(userId);
+        if (user == null) {
+            return Result.error("用户不存在");
+        }
+        user.setPasswordHash(null);
+        return Result.success(user);
+    }
+
+    /**
+     * 修改密码
+     */
+    @PostMapping("/change-password")
+    public Result<Void> changePassword(@CurrentUser UUID userId, @RequestBody java.util.Map<String, String> body) {
+        String oldPassword = body.get("oldPassword");
+        String newPassword = body.get("newPassword");
+        if (oldPassword == null || newPassword == null) {
+            return Result.error("请输入旧密码和新密码");
+        }
+        User user = userService.getById(userId);
+        if (user == null) {
+            return Result.error("用户不存在");
+        }
+        if (!userService.verifyPassword(user, oldPassword)) {
+            return Result.error("旧密码错误");
+        }
+        userService.updatePassword(userId, newPassword);
         return Result.success(null);
     }
 }

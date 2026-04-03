@@ -31,16 +31,32 @@ export interface SortParam {
 
 // 用户信息
 export interface User {
-  id: number;
+  id: string;
   username: string;
   email: string;
+  fullName?: string;
   realName?: string;
   role: 'admin' | 'expert' | 'user' | 'student';
   organization?: string;
+  avatarUrl?: string;
   avatar?: string;
+  isActive?: boolean;
+  lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+// 角色选项
+export const ROLE_OPTIONS = [
+  { value: 'admin', label: '管理员', color: 'red' },
+  { value: 'expert', label: '专家', color: 'blue' },
+  { value: 'user', label: '普通用户', color: 'green' },
+  { value: 'student', label: '学生', color: 'orange' },
+];
+
+export const ROLE_MAP = Object.fromEntries(
+  ROLE_OPTIONS.map(o => [o.value, o])
+) as Record<string, { label: string; color: string }>;
 
 // 登录请求
 export interface LoginRequest {

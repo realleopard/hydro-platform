@@ -19,6 +19,7 @@ import {
   CloseCircleOutlined,
   GlobalOutlined,
   DatabaseOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from './stores/authStore';
 import ErrorBoundary from './components/Common/ErrorBoundary';
@@ -42,6 +43,10 @@ const VisualizationPage = React.lazy(() => import('./pages/Visualization/Visuali
 const SceneList = React.lazy(() => import('./pages/Visualization/SceneList'));
 const DatasetList = React.lazy(() => import('./pages/Datasets/DatasetList'));
 const DatasetDetail = React.lazy(() => import('./pages/Datasets/DatasetDetail'));
+const UserList = React.lazy(() => import('./pages/Users/UserList'));
+const Profile = React.lazy(() => import('./pages/Auth/Profile'));
+const Register = React.lazy(() => import('./pages/Auth/Register'));
+const SettingsPage = React.lazy(() => import('./pages/Settings/SettingsPage'));
 
 const { Header, Sider, Content, Footer } = Layout;
 const { Text } = Typography;
@@ -92,6 +97,7 @@ const Navigation = () => {
     { key: '/visualization', icon: <BarChartOutlined />, label: '可视化' },
     { key: '/scenes', icon: <GlobalOutlined />, label: '场景管理' },
     { key: '/datasets', icon: <DatabaseOutlined />, label: '数据集管理' },
+    { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
     { key: '/teaching', icon: <ExperimentOutlined />, label: '教学工具' },
     { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
   ];
@@ -104,6 +110,7 @@ const Navigation = () => {
     if (path.startsWith('/visualization')) return '/visualization';
     if (path.startsWith('/scenes')) return '/scenes';
     if (path.startsWith('/datasets')) return '/datasets';
+    if (path.startsWith('/users')) return '/users';
     if (path.startsWith('/teaching')) return '/teaching';
     if (path.startsWith('/settings')) return '/settings';
     return '/';
@@ -272,7 +279,6 @@ const Dashboard = () => {
 };
 
 const Teaching = () => <div className="placeholder-page"><h1>教学工具</h1><p>虚拟实验室和演示</p></div>;
-const Settings = () => <div className="placeholder-page"><h1>系统设置</h1><p>系统配置和管理</p></div>;
 
 // 应用内容
 const AppContent = () => {
@@ -293,8 +299,11 @@ const AppContent = () => {
       <Route path="/scenes" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><SceneList /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="/datasets" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><DatasetList /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="/datasets/:id" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><DatasetDetail /></React.Suspense></MainLayout></PrivateRoute>} />
+      <Route path="/users" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><UserList /></React.Suspense></MainLayout></PrivateRoute>} />
+      <Route path="/profile" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><Profile /></React.Suspense></MainLayout></PrivateRoute>} />
+      <Route path="/register" element={<PublicRoute><React.Suspense fallback={<Loading fullscreen />}><Register /></React.Suspense></PublicRoute>} />
       <Route path="/teaching" element={<PrivateRoute><MainLayout><Teaching /></MainLayout></PrivateRoute>} />
-      <Route path="/settings" element={<PrivateRoute><MainLayout><Settings /></MainLayout></PrivateRoute>} />
+      <Route path="/settings" element={<PrivateRoute><MainLayout><React.Suspense fallback={<Loading />}><SettingsPage /></React.Suspense></MainLayout></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
