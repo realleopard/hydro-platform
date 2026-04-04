@@ -3,16 +3,16 @@
 export type TaskStatus = 'PENDING' | 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'RETRYING';
 
 export interface Task {
-  id: number;
+  id: string;
   name: string;
   description?: string;
-  workflowId: number;
+  workflowId: string;
   status: TaskStatus;
   progress?: number;
   executionStrategy?: 'sequential' | 'parallel' | 'mixed';
   outputs?: Record<string, string>;
   nodeExecutions?: NodeExecution[];
-  createdBy: number;
+  createdBy: string;
   startedAt?: string;
   completedAt?: string;
   createdAt: string;
@@ -32,7 +32,7 @@ export interface NodeExecution {
 export interface CreateTaskRequest {
   name: string;
   description?: string;
-  workflowId: number;
+  workflowId: string;
   executionStrategy?: 'sequential' | 'parallel' | 'mixed';
   parameters?: Record<string, unknown>;
 }
@@ -42,14 +42,14 @@ export interface TaskQueryParams {
   pageSize?: number;
   search?: string;
   status?: TaskStatus;
-  workflowId?: number;
-  createdBy?: number;
+  workflowId?: string;
+  createdBy?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
 
 export interface TaskProgressUpdate {
-  taskId: number;
+  taskId: string;
   status: TaskStatus;
   progress: number;
   currentNodeId?: string;
@@ -74,7 +74,7 @@ export interface WorkflowDefinition {
 export interface WorkflowNode {
   id: string;
   type: string;
-  modelId: number;
+  modelId: string;
   name?: string;
   position?: { x: number; y: number };
   config?: Record<string, unknown>;
@@ -91,14 +91,14 @@ export interface WorkflowEdge {
 }
 
 export interface Workflow {
-  id: number;
+  id: string;
   name: string;
   description?: string;
   definition?: WorkflowDefinition;
   isPublic?: boolean;
   visibility?: string;
   tags?: string[];
-  authorId?: number;
+  authorId?: string;
   ownerName?: string;
   runCount?: number;
   createdAt: string;

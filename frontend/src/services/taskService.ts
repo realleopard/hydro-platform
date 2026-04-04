@@ -30,13 +30,13 @@ class TaskWebSocketManager {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectTimeout = 3000;
-  private listeners: Map<number, Set<(update: TaskProgressUpdate) => void>> = new Map();
+  private listeners: Map<string, Set<(update: TaskProgressUpdate) => void>> = new Map();
 
   /**
    * 连接 WebSocket
    * @param taskId 任务 ID
    */
-  connect(taskId: number): void {
+  connect(taskId: string): void {
     const token = localStorage.getItem('accessToken');
     const wsUrl = `${getWebSocketBaseUrl()}/ws/v1/tasks/${taskId}?token=${token}`;
 
@@ -79,7 +79,7 @@ class TaskWebSocketManager {
   /**
    * 尝试重新连接
    */
-  private attemptReconnect(taskId: number): void {
+  private attemptReconnect(taskId: string): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       setTimeout(() => {
@@ -92,7 +92,7 @@ class TaskWebSocketManager {
   /**
    * 添加监听器
    */
-  addListener(taskId: number, callback: (update: TaskProgressUpdate) => void): void {
+  addListener(taskId: string, callback: (update: TaskProgressUpdate) => void): void {
     if (!this.listeners.has(taskId)) {
       this.listeners.set(taskId, new Set());
     }
@@ -102,14 +102,14 @@ class TaskWebSocketManager {
   /**
    * 移除监听器
    */
-  removeListener(taskId: number, callback: (update: TaskProgressUpdate) => void): void {
+  removeListener(taskId: string, callback: (update: TaskProgressUpdate) => void): void {
     this.listeners.get(taskId)?.delete(callback);
   }
 
   /**
    * 通知所有监听器
    */
-  private notifyListeners(taskId: number, update: TaskProgressUpdate): void {
+  private notifyListeners(taskId: string, update: TaskProgressUpdate): void {
     this.listeners.get(taskId)?.forEach((callback) => {
       callback(update);
     });
@@ -264,7 +264,7 @@ export const taskService = {
    * @param callback 回调函数
    */
   subscribeToProgress: (
-    taskId: number,
+    taskId: string,
     callback: (update: TaskProgressUpdate) => void
   ): (() => void) => {
     wsManager.connect(taskId);
@@ -279,7 +279,7 @@ export const taskService = {
   /**
    * 取消订阅任务进度更新
    */
-  unsubscribeFromProgress: (taskId: number): void => {
+  unsubscribeFromProgress: (taskId: string): void => {
     wsManager.disconnect();
     wsManager.removeListener(taskId, () => {});
   },

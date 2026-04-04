@@ -32,6 +32,11 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
+    // blob 响应直接返回，不解包 JSON
+    if (response.config.responseType === 'blob') {
+      return response.data;
+    }
+
     const res = response.data;
 
     // 检查响应状态

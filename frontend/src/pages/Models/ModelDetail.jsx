@@ -87,6 +87,8 @@ const ModelDetail = () => {
   const [validationForm] = Form.useForm();
   const [validationResult, setValidationResult] = useState(null);
   const [validationCalculating, setValidationCalculating] = useState(false);
+  const [savingValidation, setSavingValidation] = useState(false);
+  const [validationSaved, setValidationSaved] = useState(false);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [reviewForm] = Form.useForm();
 
@@ -407,17 +409,52 @@ const ModelDetail = () => {
                   <Descriptions.Item label="超时时间">{model.resources?.timeout ? `${model.resources.timeout} 秒` : '-'}</Descriptions.Item>
                 </Descriptions>
 
-                {model.validationMetrics && (
-                  <>
-                    <Divider />
-                    <Descriptions title="验证指标" bordered column={{ xs: 1, sm: 2 }}>
-                      <Descriptions.Item label="NSE">{model.validationMetrics.nse}</Descriptions.Item>
-                      <Descriptions.Item label="RMSE">{model.validationMetrics.rmse}</Descriptions.Item>
-                      <Descriptions.Item label="MAE">{model.validationMetrics.mae}</Descriptions.Item>
-                      <Descriptions.Item label="R²">{model.validationMetrics.r2}</Descriptions.Item>
-                    </Descriptions>
-                  </>
-                )}
+                {model.validationMetrics && (() => {
+                  const vm = model.validationMetrics;
+                  const nseGrade = getNSEGrade(vm.nse);
+                  const rmseGrade = getRMSEGrade(vm.rmse);
+                  const r2Grade = getNSEGrade(vm.r2);
+                  return (
+                    <>
+                      <Divider />
+                      <Descriptions title="最新验证指标" bordered column={{ xs: 1, sm: 2 }}>
+                        <Descriptions.Item label="NSE">
+                          {vm.nse != null ? (
+                            <Space>
+                              <span>{vm.nse.toFixed(4)}</span>
+                              {nseGrade && <Tag color={nseGrade.color}>{nseGrade.label}</Tag>}
+                            </Space>
+                          ) : '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="RMSE">
+                          {vm.rmse != null ? (
+                            <Space>
+                              <span>{vm.rmse.toFixed(4)}</span>
+                              {rmseGrade && <Tag color={rmseGrade.color}>{rmseGrade.label}</Tag>}
+                            </Space>
+                          ) : '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="MAE">
+                          {vm.mae != null ? vm.mae.toFixed(4) : '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="R²">
+                          {vm.r2 != null ? (
+                            <Space>
+                              <span>{vm.r2.toFixed(4)}</span>
+                              {r2Grade && <Tag color={r2Grade.color}>{r2Grade.label}</Tag>}
+                            </Space>
+                          ) : '-'}
+                        </Descriptions.Item>
+                        {vm.kge != null && (
+                          <Descriptions.Item label="KGE">{vm.kge.toFixed(4)}</Descriptions.Item>
+                        )}
+                        {vm.pbias != null && (
+                          <Descriptions.Item label="PBIAS">{vm.pbias.toFixed(4)}</Descriptions.Item>
+                        )}
+                      </Descriptions>
+                    </>
+                  );
+                })()}
               </Col>
 
               <Col xs={24} lg={8}>
@@ -508,6 +545,7 @@ const ModelDetail = () => {
                 onClick={() => {
                   validationForm.resetFields();
                   setValidationResult(null);
+                  setValidationSaved(false);
                   setValidationModalVisible(true);
                 }}
                 style={{ marginBottom: 16 }}
@@ -516,7 +554,48 @@ const ModelDetail = () => {
               </Button>
 
               {validationResult && (
-                <Card title="验证结果" style={{ marginBottom: 16 }}>
+                <Card
+                  title="验证结果"
+                  style={{ marginBottom: 16 }}
+                  extra={
+                    validationSaved ? (
+                      <Tag color="success" icon={<CheckCircleOutlined />}>已保存</Tag>
+                    ) : (
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<CheckCircleOutlined />}
+                        loading={savingValidation}
+                        onClick={async () => {
+                          setSavingValidation(true);
+                          try {
+                            const record = await validationService.createValidation({ modelId: id });
+                            const values = validationForm.getFieldsValue();
+                            const observed = values.observed
+                              ? String(values.observed).split(/[,\n\s]+/).map(Number).filter(n => !isNaN(n))
+                              : [];
+                            const simulated = values.simulated
+                              ? String(values.simulated).split(/[,\n\s]+/).map(Number).filter(n => !isNaN(n))
+                              : [];
+                            if (observed.length > 0 && simulated.length > 0) {
+                              await validationService.performValidation(record.id, { observed, simulated });
+                            }
+                            setValidationSaved(true);
+                            message.success('验证记录已保存');
+                            fetchReviewsAndValidations();
+                            fetchModelDetail();
+                          } catch (err) {
+                            message.error('保存失败: ' + (err.message || '请稍后重试'));
+                          } finally {
+                            setSavingValidation(false);
+                          }
+                        }}
+                      >
+                        保存验证记录
+                      </Button>
+                    )
+                  }
+                >
                   <Row gutter={16}>
                     {[
                       { label: 'NSE', value: validationResult.nse, desc: 'Nash-Sutcliffe效率系数', grade: getNSEGrade(validationResult.nse) },

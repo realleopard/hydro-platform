@@ -53,3 +53,22 @@ export const DATASET_VISIBILITY_MAP: Record<DatasetVisibility, { label: string; 
   public: { label: '公开', color: 'success' },
   group: { label: '组内', color: 'warning' },
 };
+
+export interface DatasetPreviewResponse {
+  headers: string[];
+  rows: Record<string, unknown>[];
+  totalRows: number;
+  previewRows: number;
+}
+
+// 文件扩展名到数据类型的映射
+export const FILE_EXTENSION_DATA_TYPE_MAP: Record<string, DataType> = {
+  '.csv': 'csv',
+  '.nc': 'netcdf',
+  '.nc4': 'netcdf',
+  '.tif': 'geotiff',
+  '.tiff': 'geotiff',
+  '.shp': 'shapefile',
+  '.ts': 'timeseries',
+  '.asc': 'raster',
+};

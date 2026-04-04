@@ -35,7 +35,7 @@ interface TaskState {
   error: string | null;
 
   // WebSocket 订阅
-  activeSubscriptions: Set<number>;
+  activeSubscriptions: Set<string>;
 
   // 查询参数
   queryParams: TaskQueryParams;
@@ -48,8 +48,8 @@ interface TaskState {
   retryTask: (id: string) => Promise<any>;
   deleteTask: (id: string) => Promise<boolean>;
   fetchStatistics: () => Promise<void>;
-  subscribeToTask: (taskId: number) => void;
-  unsubscribeFromTask: (taskId: number) => void;
+  subscribeToTask: (taskId: string) => void;
+  unsubscribeFromTask: (taskId: string) => void;
   updateTaskProgress: (update: TaskProgressUpdate) => void;
   setQueryParams: (params: Partial<TaskQueryParams>) => void;
   resetQueryParams: () => void;
@@ -257,7 +257,7 @@ export const useTaskStore = create<TaskState>()(
       /**
        * 订阅任务进度更新（WebSocket）
        */
-      subscribeToTask: (taskId: number) => {
+      subscribeToTask: (taskId: string) => {
         const { activeSubscriptions } = get();
         if (activeSubscriptions.has(taskId)) return;
 
@@ -273,7 +273,7 @@ export const useTaskStore = create<TaskState>()(
       /**
        * 取消订阅任务进度更新
        */
-      unsubscribeFromTask: (taskId: number) => {
+      unsubscribeFromTask: (taskId: string) => {
         taskService.unsubscribeFromProgress(taskId);
         set((state) => ({
           activeSubscriptions: new Set(

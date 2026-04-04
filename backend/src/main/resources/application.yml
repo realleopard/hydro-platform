@@ -29,6 +29,13 @@ spring:
       connection-timeout: 30000
       connection-test-query: SELECT 1
 
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+      enabled: true
+
   # Redis 配置
   redis:
     host: ${SPRING_REDIS_HOST:localhost}
@@ -66,6 +73,11 @@ mybatis-plus:
 jwt:
   secret: ${JWT_SECRET:hydro-platform-jwt-secret-key-must-be-32-bytes-long}
   expiration: ${JWT_EXPIRATION:86400000}
+
+# 数据集文件存储
+dataset:
+  storage:
+    local-path: ${DATASET_STORAGE_PATH:/data/hydro-platform/datasets}
 
 # Actuator 配置 (监控)
 management:

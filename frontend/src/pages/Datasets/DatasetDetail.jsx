@@ -7,6 +7,7 @@ import {
   Button,
   Space,
   Spin,
+  Table,
   message,
   Popconfirm,
   Typography,
@@ -16,6 +17,7 @@ import {
   Select,
   Row,
   Col,
+  Alert,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -23,6 +25,7 @@ import {
   DeleteOutlined,
   DatabaseOutlined,
   DownloadOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import { datasetService } from '../../services/datasetService';
 import { DATASET_DATA_TYPE_MAP, DATASET_DATA_TYPE_OPTIONS, DATASET_VISIBILITY_MAP, DATASET_VISIBILITY_OPTIONS } from '../../types';
@@ -36,6 +39,10 @@ const DatasetDetail = () => {
   const [loading, setLoading] = useState(true);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editForm] = Form.useForm();
+  const [previewData, setPreviewData] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     const fetchDataset = async () => {
@@ -52,6 +59,26 @@ const DatasetDetail = () => {
     if (id) fetchDataset();
   }, [id]);
 
+  // CSV 类型自动加载预览
+  useEffect(() => {
+    if (dataset && dataset.dataType === 'csv' && dataset.storagePath) {
+      loadPreview();
+    }
+  }, [dataset?.dataType, dataset?.storagePath]);
+
+  const loadPreview = async () => {
+    setPreviewLoading(true);
+    setPreviewError(null);
+    try {
+      const data = await datasetService.previewDataset(id);
+      setPreviewData(data);
+    } catch (error) {
+      setPreviewError(error.message || '预览加载失败');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const handleEdit = () => {
     if (!dataset) return;
     editForm.setFieldsValue({
@@ -59,7 +86,6 @@ const DatasetDetail = () => {
       description: dataset.description,
       dataType: dataset.dataType,
       visibility: dataset.visibility,
-      storagePath: dataset.storagePath,
     });
     setEditModalVisible(true);
   };
@@ -84,6 +110,21 @@ const DatasetDetail = () => {
       navigate('/datasets');
     } catch (error) {
       message.error('删除失败: ' + (error.message || ''));
+    }
+  };
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      await datasetService.downloadDataset(id);
+      message.success('下载已开始');
+      // 刷新以更新下载次数
+      const updated = await datasetService.getDataset(id);
+      setDataset(updated);
+    } catch (error) {
+      message.error('下载失败: ' + (error.message || ''));
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -118,6 +159,16 @@ const DatasetDetail = () => {
           <Tag color={visInfo.color}>{visInfo.label}</Tag>
         </Space>
         <Space>
+          {dataset.storagePath && (
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              onClick={handleDownload}
+              loading={downloading}
+            >
+              下载
+            </Button>
+          )}
           <Button icon={<EditOutlined />} onClick={handleEdit}>编辑</Button>
           <Popconfirm title="确定删除该数据集？" onConfirm={handleDelete}>
             <Button danger icon={<DeleteOutlined />}>删除</Button>
@@ -133,11 +184,8 @@ const DatasetDetail = () => {
           </Descriptions.Item>
           <Descriptions.Item label="描述" span={2}>{dataset.description || '--'}</Descriptions.Item>
           <Descriptions.Item label="存储类型">{dataset.storageType || '--'}</Descriptions.Item>
-          <Descriptions.Item label="存储路径">
-            <Text code>{dataset.storagePath || '--'}</Text>
-          </Descriptions.Item>
           <Descriptions.Item label="文件大小">{formatFileSize(dataset.fileSize)}</Descriptions.Item>
-          <Descriptions.Item label="校验和">
+          <Descriptions.Item label="校验和" span={2}>
             <Text code style={{ fontSize: 11 }}>{dataset.checksum || '--'}</Text>
           </Descriptions.Item>
           <Descriptions.Item label="可见性">
@@ -155,6 +203,45 @@ const DatasetDetail = () => {
         </Descriptions>
       </Card>
 
+      {/* CSV 数据预览 */}
+      {dataset.dataType === 'csv' && (
+        <Card
+          title={<Space><EyeOutlined /> 数据预览</Space>}
+          style={{ marginBottom: 16 }}
+          extra={
+            previewData && (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                显示前 {previewData.previewRows} 行，共 {previewData.totalRows} 行
+              </Text>
+            )
+          }
+        >
+          {previewLoading ? (
+            <div style={{ textAlign: 'center', padding: 40 }}><Spin tip="加载预览..." /></div>
+          ) : previewError ? (
+            <Alert type="warning" message={previewError} showIcon />
+          ) : previewData && previewData.headers && previewData.headers.length > 0 ? (
+            <Table
+              dataSource={previewData.rows}
+              columns={previewData.headers.map(h => ({
+                title: h,
+                dataIndex: h,
+                key: h,
+                ellipsis: true,
+                width: 150,
+              }))}
+              size="small"
+              scroll={{ x: 'max-content' }}
+              pagination={false}
+              rowKey={(_, idx) => idx}
+            />
+          ) : (
+            <Alert type="info" message="暂无预览数据" />
+          )}
+        </Card>
+      )}
+
+      {/* 时空范围 */}
       {(dataset.temporalStart || dataset.temporalEnd || dataset.spatialBounds) && (
         <Card title="时空范围" style={{ marginBottom: 16 }}>
           <Descriptions column={2} size="small">
@@ -200,22 +287,13 @@ const DatasetDetail = () => {
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={3} />
           </Form.Item>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="visibility" label="可见性">
-                <Select>
-                  {DATASET_VISIBILITY_OPTIONS.map(({ value, label }) => (
-                    <Select.Option key={value} value={value}>{label}</Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="storagePath" label="存储路径" rules={[{ required: true }]}>
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Form.Item name="visibility" label="可见性">
+            <Select>
+              {DATASET_VISIBILITY_OPTIONS.map(({ value, label }) => (
+                <Select.Option key={value} value={value}>{label}</Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
         </Form>
       </Modal>
     </div>

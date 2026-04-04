@@ -9,11 +9,14 @@ import com.example.testproject.security.CurrentUser;
 import com.example.testproject.service.ModelService;
 import com.example.testproject.service.ModelVersionService;
 import com.example.testproject.service.ModelReviewService;
+import com.example.testproject.service.ModelValidationService;
 import com.example.testproject.service.DockerRegistryService;
+import com.example.testproject.validation.ValidationMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -29,6 +32,7 @@ public class ModelController {
     private final ModelService modelService;
     private final ModelVersionService modelVersionService;
     private final ModelReviewService modelReviewService;
+    private final ModelValidationService modelValidationService;
     private final DockerRegistryService dockerRegistryService;
     
     /**
@@ -63,15 +67,26 @@ public class ModelController {
     }
     
     /**
-     * 获取模型详情
+     * 获取模型详情（含最新验证指标）
      */
     @GetMapping("/{id}")
-    public Result<Model> get(@PathVariable UUID id) {
+    public Result<Map<String, Object>> get(@PathVariable UUID id) {
         Model model = modelService.getById(id);
         if (model == null) {
             return Result.error("模型不存在");
         }
-        return Result.success(model);
+
+        // 用 Jackson 将 model 转为 Map，再附加验证指标
+        Map<String, Object> result = new com.fasterxml.jackson.databind.ObjectMapper()
+                .convertValue(model, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+
+        // 附加最新验证指标
+        try {
+            ValidationMetrics metrics = modelValidationService.getLatestValidationMetrics(id);
+            result.put("validationMetrics", metrics);
+        } catch (Exception ignored) {}
+
+        return Result.success(result);
     }
     
     /**
