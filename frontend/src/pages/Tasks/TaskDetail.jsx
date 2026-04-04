@@ -94,17 +94,30 @@ const TaskDetail = () => {
     setLoading(true);
     setError(null);
     try {
-      const taskId = id;
-      const [taskData, logsData, outputsData] = await Promise.all([
-        taskService.getTaskById(taskId),
-        taskService.getTaskLogs(taskId).catch(() => []),
-        taskService.getTaskOutputs(taskId).catch(() => [])
+      const [taskData, logsData] = await Promise.all([
+        taskService.getTaskById(id),
+        taskService.getTaskLogs(id).catch(() => []),
       ]);
       setTask(taskData);
       setLogs(logsData || []);
-      setOutputs(outputsData || []);
 
-      // Fetch workflow definition for DAG visualization
+      // 从节点数据提取输出
+      const outputsData = [];
+      for (const node of (taskData?.nodes || [])) {
+        if (node.outputs) {
+          try {
+            const parsed = typeof node.outputs === 'string' ? JSON.parse(node.outputs) : node.outputs;
+            outputsData.push({
+              nodeId: node.nodeId,
+              nodeName: node.nodeName,
+              data: parsed,
+            });
+          } catch { /* skip */ }
+        }
+      }
+      setOutputs(outputsData);
+
+      // 加载工作流定义用于 DAG 可视化
       if (taskData?.workflowId) {
         try {
           const wf = await workflowService.getWorkflowById(taskData.workflowId);
@@ -356,10 +369,10 @@ const TaskDetail = () => {
                   <Badge status="processing" text="实时连接" />
                 )}
               </Space>
-              <p className={styles.description}>{task.description}</p>
+              <p className={styles.description}>{task.description || ''}</p>
               <Space>
-                <Tag color="blue">{task.workflowName}</Tag>
-                <Tag>策略: {task.strategy === 'sequential' ? '串行' : task.strategy === 'parallel' ? '并行' : '混合'}</Tag>
+                <Tag color="blue">{task.workflowName || '工作流'}</Tag>
+                <Tag>策略: 混合</Tag>
               </Space>
             </Space>
           </Col>
@@ -419,7 +432,7 @@ const TaskDetail = () => {
           <Card>
             <Statistic
               title="运行时长"
-              value={formatDuration(task.resourceUsage?.duration)}
+              value={formatDuration(task.duration || task.resourceUsage?.duration)}
               prefix={<ClockCircleOutlined />}
             />
           </Card>
@@ -428,8 +441,8 @@ const TaskDetail = () => {
           <Card>
             <Statistic
               title="CPU使用"
-              value={task.resourceUsage?.cpu || 0}
-              suffix="核"
+              value={task.resourceUsage?.cpuUsagePercent || 0}
+              suffix="%"
               precision={1}
             />
           </Card>
@@ -438,9 +451,8 @@ const TaskDetail = () => {
           <Card>
             <Statistic
               title="内存使用"
-              value={task.resourceUsage?.memory || 0}
-              suffix="GB"
-              precision={1}
+              value={task.resourceUsage?.memoryUsageMB || 0}
+              suffix="MB"
             />
           </Card>
         </Col>
@@ -454,8 +466,7 @@ const TaskDetail = () => {
               <Col xs={24} lg={12}>
                 <Descriptions title="基本信息" bordered column={1}>
                   <Descriptions.Item label="任务ID">{task.id}</Descriptions.Item>
-                  <Descriptions.Item label="工作流">{task.workflowName}</Descriptions.Item>
-                  <Descriptions.Item label="创建者">{task.createdByName}</Descriptions.Item>
+                  <Descriptions.Item label="工作流">{task.workflowName || '-'}</Descriptions.Item>
                   <Descriptions.Item label="创建时间">
                     {task.createdAt ? new Date(task.createdAt).toLocaleString('zh-CN') : '-'}
                   </Descriptions.Item>
@@ -469,16 +480,29 @@ const TaskDetail = () => {
                       {new Date(task.completedAt).toLocaleString('zh-CN')}
                     </Descriptions.Item>
                   )}
+                  {task.duration != null && (
+                    <Descriptions.Item label="运行时长">
+                      {formatDuration(task.duration)}
+                    </Descriptions.Item>
+                  )}
                 </Descriptions>
               </Col>
 
               <Col xs={24} lg={12}>
                 <Descriptions title="输入参数" bordered column={1}>
-                  {task.inputs?.map((input, index) => (
-                    <Descriptions.Item key={index} label={input.name}>
-                      <code className={styles.filePath}>{input.fileUrl || input.value?.toString()}</code>
-                    </Descriptions.Item>
-                  )) || <Descriptions.Item label="-">无输入参数</Descriptions.Item>}
+                  {(() => {
+                    try {
+                      const parsed = typeof task.inputs === 'string' ? JSON.parse(task.inputs) : task.inputs;
+                      if (parsed && typeof parsed === 'object') {
+                        return Object.entries(parsed).map(([key, val]) => (
+                          <Descriptions.Item key={key} label={key}>
+                            <code className={styles.filePath}>{typeof val === 'object' ? JSON.stringify(val) : String(val)}</code>
+                          </Descriptions.Item>
+                        ));
+                      }
+                    } catch { /* ignore */ }
+                    return <Descriptions.Item label="-">无输入参数</Descriptions.Item>;
+                  })()}
                 </Descriptions>
               </Col>
             </Row>
@@ -495,24 +519,16 @@ const TaskDetail = () => {
               </>
             )}
 
-            {/* 输出文件 */}
+            {/* 节点输出结果 */}
             {outputs.length > 0 && (
               <>
                 <Divider />
-                <Descriptions title="输出文件" bordered column={1}>
+                <Descriptions title="节点输出" bordered column={1}>
                   {outputs.map((output, index) => (
-                    <Descriptions.Item key={index} label={output.name}>
-                      <Space>
-                        <code className={styles.filePath}>{output.path}</code>
-                        <Button
-                          type="link"
-                          size="small"
-                          icon={<DownloadOutlined />}
-                          onClick={() => handleDownload(output.path)}
-                        >
-                          下载
-                        </Button>
-                      </Space>
+                    <Descriptions.Item key={index} label={output.nodeName || output.nodeId}>
+                      <pre style={{ margin: 0, fontSize: 12, maxHeight: 200, overflow: 'auto', background: '#f5f5f5', padding: 8, borderRadius: 4 }}>
+                        {typeof output.data === 'object' ? JSON.stringify(output.data, null, 2) : String(output.data)}
+                      </pre>
                     </Descriptions.Item>
                   ))}
                 </Descriptions>
@@ -537,12 +553,17 @@ const TaskDetail = () => {
                   <Timeline mode="left">
                     {task.nodes.map((node) => (
                       <Timeline.Item
-                        key={node.id}
+                        key={node.nodeId}
                         color={node.status === 'completed' ? 'green' : node.status === 'running' ? 'blue' : node.status === 'failed' ? 'red' : 'gray'}
                       >
                         <Space>
-                          <span>{node.modelName || node.nodeName || node.nodeId}</span>
+                          <span>{node.nodeName || node.nodeId}</span>
                           {getNodeStatusTag(node.status)}
+                          {node.duration != null && (
+                            <span style={{ fontSize: 12, color: '#8c8c8c' }}>
+                              耗时 {node.duration}秒
+                            </span>
+                          )}
                           {node.startedAt && (
                             <span style={{ fontSize: 12, color: '#8c8c8c' }}>
                               {new Date(node.startedAt).toLocaleString('zh-CN')}
@@ -561,15 +582,22 @@ const TaskDetail = () => {
               <Timeline mode="left">
                 {task.nodes.map((node) => (
                   <Timeline.Item
-                    key={node.id}
+                    key={node.nodeId}
                     color={node.status === 'completed' ? 'green' : node.status === 'running' ? 'blue' : node.status === 'failed' ? 'red' : 'gray'}
                   >
-                    <Card size="small" className={styles.nodeCard} title={<Space><span>{node.modelName}</span>{getNodeStatusTag(node.status)}</Space>}>
+                    <Card size="small" className={styles.nodeCard} title={<Space><span>{node.nodeName || node.nodeId}</span>{getNodeStatusTag(node.status)}</Space>}>
                       <Descriptions column={2} size="small">
                         <Descriptions.Item label="节点ID">{node.nodeId}</Descriptions.Item>
-                        <Descriptions.Item label="重试次数">{node.retryCount || 0}/{node.maxRetries || 3}</Descriptions.Item>
+                        <Descriptions.Item label="重试次数">{node.retryCount || 0}/3</Descriptions.Item>
+                        {node.duration != null && <Descriptions.Item label="耗时">{node.duration}秒</Descriptions.Item>}
                         {node.startedAt && <Descriptions.Item label="开始时间">{new Date(node.startedAt).toLocaleString('zh-CN')}</Descriptions.Item>}
                         {node.completedAt && <Descriptions.Item label="完成时间">{new Date(node.completedAt).toLocaleString('zh-CN')}</Descriptions.Item>}
+                        {node.resourceUsage?.cpuUsagePercent != null && (
+                          <Descriptions.Item label="CPU使用">{node.resourceUsage.cpuUsagePercent}%</Descriptions.Item>
+                        )}
+                        {node.resourceUsage?.memoryUsageMB != null && (
+                          <Descriptions.Item label="内存使用">{node.resourceUsage.memoryUsageMB} MB</Descriptions.Item>
+                        )}
                       </Descriptions>
                     </Card>
                   </Timeline.Item>

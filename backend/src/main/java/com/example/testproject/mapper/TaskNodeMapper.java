@@ -19,19 +19,22 @@ public interface TaskNodeMapper extends BaseMapper<TaskNode> {
     /**
      * 根据任务ID查询节点执行列表
      */
-    @Select("SELECT * FROM task_nodes WHERE task_id = #{taskId} AND deleted_at IS NULL ORDER BY execution_order, created_at")
+    @Select("SELECT id, task_id, node_id, node_name, model_id, status, progress, retry_count, execution_order, " +
+            "container_id, pod_name, node_hostname, inputs, outputs, resource_usage, error_message, " +
+            "log AS logs, started_at, completed_at, created_at, updated_at, deleted_at " +
+            "FROM task_nodes WHERE task_id = #{taskId} AND deleted_at IS NULL ORDER BY execution_order, created_at")
     List<TaskNode> selectByTaskId(@Param("taskId") UUID taskId);
 
     /**
      * 根据任务ID和节点ID查询
      */
-    @Select("SELECT * FROM task_nodes WHERE task_id = #{taskId} AND node_id = #{nodeId} AND deleted_at IS NULL")
+    @Select("SELECT *, log AS logs FROM task_nodes WHERE task_id = #{taskId} AND node_id = #{nodeId} AND deleted_at IS NULL")
     TaskNode selectByTaskIdAndNodeId(@Param("taskId") UUID taskId, @Param("nodeId") String nodeId);
 
     /**
      * 查询正在运行的节点
      */
-    @Select("SELECT * FROM task_nodes WHERE task_id = #{taskId} AND status = 'running' AND deleted_at IS NULL")
+    @Select("SELECT *, log AS logs FROM task_nodes WHERE task_id = #{taskId} AND status = 'running' AND deleted_at IS NULL")
     List<TaskNode> selectRunningNodes(@Param("taskId") UUID taskId);
 
     /**

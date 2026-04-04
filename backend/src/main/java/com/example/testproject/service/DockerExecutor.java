@@ -521,11 +521,12 @@ public class DockerExecutor {
     }
 
     /**
-     * 获取容器资源使用情况
+     * 获取容器资源使用情况（CPU使用率和内存使用量）
      */
     public Map<String, Object> getContainerStats(String containerId) {
         Map<String, Object> stats = new HashMap<>();
         try {
+            // 基础容器状态
             InspectContainerResponse inspect = dockerClient
                     .inspectContainerCmd(containerId).exec();
 
@@ -534,6 +535,79 @@ public class DockerExecutor {
             stats.put("exitCode", inspect.getState().getExitCodeLong());
             stats.put("startedAt", inspect.getState().getStartedAt());
             stats.put("finishedAt", inspect.getState().getFinishedAt());
+
+            // 使用 docker stats 采集 CPU/内存
+            try {
+                var latch = new java.util.concurrent.CountDownLatch(1);
+                dockerClient.statsCmd(containerId).withNoStream(true)
+                        .exec(new ResultCallback<com.github.dockerjava.api.model.Statistics>() {
+                            @Override
+                            public void onStart(Closeable closeable) {}
+
+                            @Override
+                            public void onNext(com.github.dockerjava.api.model.Statistics statistics) {
+                                if (statistics == null) return;
+
+                                // CPU 使用率计算
+                                var cpuStats = statistics.getCpuStats();
+                                var preCpuStats = statistics.getPreCpuStats();
+                                if (cpuStats != null && preCpuStats != null
+                                        && cpuStats.getCpuUsage() != null && preCpuStats.getCpuUsage() != null) {
+                                    long cpuDelta = cpuStats.getCpuUsage().getTotalUsage()
+                                            - preCpuStats.getCpuUsage().getTotalUsage();
+                                    Long systemCpu = cpuStats.getSystemCpuUsage();
+                                    Long preSystemCpu = preCpuStats.getSystemCpuUsage();
+                                    if (systemCpu != null && preSystemCpu != null) {
+                                        long systemDelta = systemCpu - preSystemCpu;
+                                        if (systemDelta > 0) {
+                                            long numCpus = cpuStats.getOnlineCpus() != null
+                                                    ? cpuStats.getOnlineCpus()
+                                                    : (cpuStats.getCpuUsage().getPercpuUsage() != null
+                                                    ? cpuStats.getCpuUsage().getPercpuUsage().size()
+                                                    : 1);
+                                            double cpuPercent = ((double) cpuDelta / systemDelta) * numCpus * 100.0;
+                                            stats.put("cpuUsagePercent", Math.round(cpuPercent * 10.0) / 10.0);
+                                        }
+                                    }
+                                }
+
+                                // 内存使用
+                                var memStats = statistics.getMemoryStats();
+                                if (memStats != null) {
+                                    Long memUsage = memStats.getUsage();
+                                    Long memLimit = memStats.getLimit();
+                                    if (memUsage != null) {
+                                        stats.put("memoryUsageBytes", memUsage);
+                                        stats.put("memoryUsageMB", memUsage / (1024 * 1024));
+                                    }
+                                    if (memLimit != null) {
+                                        stats.put("memoryLimitMB", memLimit / (1024 * 1024));
+                                    }
+                                    if (memUsage != null && memLimit != null && memLimit > 0) {
+                                        double memPercent = ((double) memUsage / memLimit) * 100.0;
+                                        stats.put("memoryUsagePercent", Math.round(memPercent * 10.0) / 10.0);
+                                    }
+                                }
+                                latch.countDown();
+                            }
+
+                            @Override
+                            public void onError(Throwable throwable) {
+                                log.debug("stats采集出错: containerId={}, error={}", containerId, throwable.getMessage());
+                                latch.countDown();
+                            }
+
+                            @Override
+                            public void onComplete() { latch.countDown(); }
+
+                            @Override
+                            public void close() {}
+                        });
+                latch.await(5, TimeUnit.SECONDS);
+
+            } catch (Exception e) {
+                log.debug("采集docker stats失败(非致命): containerId={}, error={}", containerId, e.getMessage());
+            }
 
         } catch (Exception e) {
             log.error("获取容器状态失败: containerId={}, error={}",

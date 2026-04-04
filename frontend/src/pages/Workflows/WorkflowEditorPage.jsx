@@ -53,7 +53,10 @@ const toBackendDefinition = (rfDef) => {
       ),
     }));
 
-  const edges = (rfDef.edges || []).map(e => ({
+  const validNodeIds = new Set(nodes.map(n => n.id));
+  const edges = (rfDef.edges || [])
+    .filter(e => validNodeIds.has(e.source) && validNodeIds.has(e.target))
+    .map(e => ({
     id: e.id,
     source: e.source,
     target: e.target,

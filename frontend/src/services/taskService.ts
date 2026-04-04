@@ -134,12 +134,12 @@ export const taskService = {
   },
 
   /**
-   * 获取任务详情
+   * 获取任务详情（包含节点、资源使用、工作流名称等）
    * @param id 任务 ID
-   * @returns 任务详情
+   * @returns 任务详情（Map 格式）
    */
-  getTaskById: async (id: number): Promise<Task> => {
-    return api.get<Task>(`/tasks/${id}`);
+  getTaskById: async (id: string): Promise<any> => {
+    return api.get(`/tasks/${id}`);
   },
 
   /**
@@ -155,7 +155,7 @@ export const taskService = {
    * 取消任务
    * @param id 任务 ID
    */
-  cancelTask: async (id: number): Promise<void> => {
+  cancelTask: async (id: string): Promise<void> => {
     return api.post<void>(`/tasks/${id}/cancel`);
   },
 
@@ -164,52 +164,53 @@ export const taskService = {
    * @param id 任务 ID
    * @returns 重试后的任务
    */
-  retryTask: async (id: number): Promise<Task> => {
-    return api.post<Task>(`/tasks/${id}/retry`);
+  retryTask: async (id: string): Promise<any> => {
+    return api.post(`/tasks/${id}/retry`);
   },
 
   /**
    * 删除任务
    * @param id 任务 ID
    */
-  deleteTask: async (id: number): Promise<void> => {
+  deleteTask: async (id: string): Promise<void> => {
     return api.delete<void>(`/tasks/${id}`);
   },
 
   /**
-   * 获取任务日志
+   * 获取任务日志（按行拆分的结构化日志）
    * @param id 任务 ID
-   * @param nodeId 节点 ID（可选）
-   * @returns 日志内容
+   * @returns 日志条目数组
    */
-  getTaskLogs: async (id: number, nodeId?: string): Promise<string[]> => {
-    const params = nodeId ? { nodeId } : {};
-    return api.get<string[]>(`/tasks/${id}/logs`, params);
+  getTaskLogs: async (id: string): Promise<any[]> => {
+    return api.get(`/tasks/${id}/logs`);
   },
 
   /**
-   * 获取任务输出文件
+   * 获取任务输出（从节点输出数据解析）
    * @param id 任务 ID
-   * @returns 输出文件列表
+   * @returns 输出数据
    */
-  getTaskOutputs: async (
-    id: number
-  ): Promise<
-    Array<{
-      name: string;
-      path: string;
-      size: number;
-      type: string;
-    }>
-  > => {
-    return api.get<
-      Array<{
-        name: string;
-        path: string;
-        size: number;
-        type: string;
-      }>
-    >(`/tasks/${id}/outputs`);
+  getTaskOutputs: async (id: string): Promise<any[]> => {
+    try {
+      const task: any = await api.get(`/tasks/${id}`);
+      const nodes = task?.nodes || [];
+      const outputs = [];
+      for (const node of nodes) {
+        if (node.outputs) {
+          try {
+            const parsed = typeof node.outputs === 'string' ? JSON.parse(node.outputs) : node.outputs;
+            outputs.push({
+              nodeId: node.nodeId,
+              nodeName: node.nodeName,
+              data: parsed,
+            });
+          } catch { /* skip */ }
+        }
+      }
+      return outputs;
+    } catch {
+      return [];
+    }
   },
 
   /**

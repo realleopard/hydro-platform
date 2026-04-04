@@ -133,15 +133,88 @@ const CanvasContent = ({
 
   const { project, fitView, getNodes, getEdges } = useReactFlow();
 
+  // 保存历史记录 (defined early because handleDeleteEdge depends on it)
+  const saveHistory = useCallback(() => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push({
+      nodes: getNodes(),
+      edges: getEdges(),
+    });
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  }, [history, historyIndex, getNodes, getEdges]);
+
+  // 删除边 (defined early so useEffect can reference them)
+  const handleDeleteEdge = useCallback(
+    (edgeId) => {
+      setEdges((eds) => eds.filter((e) => e.id !== edgeId));
+      setIsDirty(true);
+      saveHistory();
+    },
+    [setEdges, saveHistory]
+  );
+
+  // 编辑边映射
+  const handleEditEdgeMapping = useCallback(
+    (edgeId) => {
+      const edge = getEdges().find(e => e.id === edgeId);
+      if (!edge) return;
+      const sourceNode = getNodes().find(n => n.id === edge.source);
+      const targetNode = getNodes().find(n => n.id === edge.target);
+      if (!sourceNode || !targetNode) return;
+      setEditingEdgeId(edgeId);
+      setMappingSourceNode(sourceNode);
+      setMappingTargetNode(targetNode);
+      setMappingConfig(edge.data?.dataMapping || {});
+      setMappingModalVisible(true);
+    },
+    [getNodes, getEdges]
+  );
+
+  // 打开条件编辑弹窗
+  const handleEditCondition = useCallback((edgeId) => {
+    const edges = getEdges();
+    const edge = edges.find(e => e.id === edgeId);
+    setConditionEdgeId(edgeId);
+    setConditionExpression(edge?.data?.condition || '');
+    setConditionModalVisible(true);
+  }, [getEdges]);
+
   // 加载工作流数据
   useEffect(() => {
     if (workflow?.definition) {
-      const { nodes: workflowNodes = [], edges: workflowEdges = [] } = workflow.definition;
-      setNodes(workflowNodes);
+      let rawDef = workflow.definition;
+      if (typeof rawDef === 'string') {
+        try { rawDef = JSON.parse(rawDef); } catch { rawDef = { nodes: [], edges: [] }; }
+      }
+      const { nodes: workflowNodes = [], edges: workflowEdges = [] } = rawDef;
+
+      // 转换后端格式节点为 React Flow 格式
+      const rfNodes = workflowNodes.map(n => {
+        // 已经是 React Flow 格式的节点（有 data 字段）
+        if (n.data) return n;
+        // 后端格式：{id, type, name, modelId, position} → React Flow 格式
+        return {
+          id: n.id,
+          type: n.type || 'model',
+          position: n.position || { x: 0, y: 0 },
+          data: {
+            label: n.name || n.id,
+            ...(n.modelId ? { model: { id: n.modelId, name: n.name } } : {}),
+            ...(n.config || {}),
+            onDoubleClick: onNodeDoubleClick,
+            onContextMenu: onNodeContextMenu,
+          },
+        };
+      });
+
+      setNodes(rfNodes);
       // 恢复 edges 时设置正确的 type 和 data
       setEdges(workflowEdges.map(e => {
-        const hasMapping = e.data?.dataMapping && Object.keys(e.data.dataMapping).length > 0;
-        const hasCondition = e.data?.condition;
+        const hasMapping = e.dataMapping || (e.data?.dataMapping && Object.keys(e.data.dataMapping).length > 0);
+        const hasCondition = e.condition || e.data?.condition;
+        const dataMapping = e.dataMapping || e.data?.dataMapping;
+        const condition = e.condition || e.data?.condition;
         let edgeType = 'custom';
         if (hasCondition) edgeType = 'condition';
         else if (hasMapping) edgeType = 'dataFlow';
@@ -150,6 +223,8 @@ const CanvasContent = ({
           type: edgeType,
           data: {
             ...e.data,
+            ...(dataMapping ? { dataMapping } : {}),
+            ...(condition ? { condition } : {}),
             onDelete: handleDeleteEdge,
             onEdit: handleEditEdgeMapping,
             onEditCondition: handleEditCondition,
@@ -182,46 +257,6 @@ const CanvasContent = ({
       });
     }
   }, [nodes, edges]);
-
-  // 保存历史记录
-  const saveHistory = useCallback(() => {
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push({
-      nodes: getNodes(),
-      edges: getEdges(),
-    });
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-  }, [history, historyIndex, getNodes, getEdges]);
-
-  // 删除边
-  const handleDeleteEdge = useCallback(
-    (edgeId) => {
-      setEdges((eds) => eds.filter((e) => e.id !== edgeId));
-      setIsDirty(true);
-      saveHistory();
-    },
-    [setEdges, saveHistory]
-  );
-
-  // 编辑边映射
-  const handleEditEdgeMapping = useCallback(
-    (edgeId) => {
-      const edge = getEdges().find(e => e.id === edgeId);
-      if (!edge) return;
-
-      const sourceNode = getNodes().find(n => n.id === edge.source);
-      const targetNode = getNodes().find(n => n.id === edge.target);
-      if (!sourceNode || !targetNode) return;
-
-      setEditingEdgeId(edgeId);
-      setMappingSourceNode(sourceNode);
-      setMappingTargetNode(targetNode);
-      setMappingConfig(edge.data?.dataMapping || {});
-      setMappingModalVisible(true);
-    },
-    [getNodes, getEdges]
-  );
 
   // 连接节点
   const onConnect = useCallback(
@@ -319,14 +354,7 @@ const CanvasContent = ({
     }
   }, [handleEditEdgeMapping, handleEditCondition]);
 
-  // 打开条件编辑弹窗
-  const handleEditCondition = useCallback((edgeId) => {
-    const edges = getEdges();
-    const edge = edges.find(e => e.id === edgeId);
-    setConditionEdgeId(edgeId);
-    setConditionExpression(edge?.data?.condition || '');
-    setConditionModalVisible(true);
-  }, [getEdges]);
+  // 保存历史记录 (moved up before usage)
 
   // 保存条件
   const handleConditionSave = useCallback(() => {

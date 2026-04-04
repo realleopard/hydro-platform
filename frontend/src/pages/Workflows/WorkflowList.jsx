@@ -180,7 +180,13 @@ const WorkflowList = () => {
       key: 'nodeCount',
       width: 80,
       render: (count, record) => {
-        const nodeCount = count || record.definition?.nodes?.length || 0;
+        let nodeCount = count;
+        if (!nodeCount && record.definition) {
+          let def = record.definition;
+          if (typeof def === 'string') { try { def = JSON.parse(def); } catch { def = null; } }
+          nodeCount = def?.nodes?.length || 0;
+        }
+        nodeCount = nodeCount || 0;
         return (
           <Tooltip title={`${nodeCount} 个节点`}>
             <span>{nodeCount}</span>

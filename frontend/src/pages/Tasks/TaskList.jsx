@@ -33,10 +33,12 @@ import {
   CloseCircleOutlined,
   SyncOutlined,
   LoadingOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { taskService } from '../../services/taskService';
+import { workflowService } from '../../services/workflowService';
 import { TASK_STATUS_OPTIONS } from '../../types';
 import styles from './TaskList.module.css';
 
@@ -51,13 +53,25 @@ const TaskList = () => {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState(null);
+  const [workflows, setWorkflows] = useState([]);
   const [query, setQuery] = useState({
     page: 1,
     pageSize: 10,
     keyword: '',
     status: undefined,
+    workflowId: undefined,
     dateRange: null
   });
+
+  // 加载工作流列表（用于筛选下拉）
+  useEffect(() => {
+    workflowService.getWorkflows({ page: 1, size: 100 })
+      .then(res => {
+        const records = res.records || res.data?.records || [];
+        setWorkflows(records);
+      })
+      .catch(() => {});
+  }, []);
 
   // 加载任务列表
   const fetchTasks = useCallback(async () => {
@@ -67,10 +81,8 @@ const TaskList = () => {
       const params = {
         page: query.page,
         size: query.pageSize,
-        search: query.keyword || undefined,
-        status: query.status,
-        startDate: query.dateRange?.[0]?.format('YYYY-MM-DD'),
-        endDate: query.dateRange?.[1]?.format('YYYY-MM-DD'),
+        status: query.status || undefined,
+        workflowId: query.workflowId || undefined,
       };
 
       const response = await taskService.getTasks(params);
@@ -79,29 +91,17 @@ const TaskList = () => {
     } catch (err) {
       console.error('Failed to fetch tasks:', err);
       setError(err.message || '加载任务列表失败');
-      message.error('加载任务列表失败: ' + (err.message || '请稍后重试'));
       setTasks([]);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [query.page, query.pageSize, query.keyword, query.status]);
+  }, [query.page, query.pageSize, query.status, query.workflowId]);
 
   // 初始加载和查询条件变化时重新加载
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
-
-  // 搜索防抖
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (query.keyword !== undefined) {
-        setQuery(prev => ({ ...prev, page: 1 }));
-        fetchTasks();
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [query.keyword, fetchTasks]);
 
   // 获取状态标签
   const getStatusTag = (status) => {
@@ -130,7 +130,6 @@ const TaskList = () => {
       message.success('任务已取消');
       fetchTasks();
     } catch (err) {
-      console.error('Failed to cancel task:', err);
       message.error('取消失败: ' + (err.message || '请稍后重试'));
     }
   };
@@ -142,7 +141,6 @@ const TaskList = () => {
       message.success('任务已重新提交');
       fetchTasks();
     } catch (err) {
-      console.error('Failed to retry task:', err);
       message.error('重试失败: ' + (err.message || '请稍后重试'));
     }
   };
@@ -154,43 +152,17 @@ const TaskList = () => {
       message.success('任务已删除');
       fetchTasks();
     } catch (err) {
-      console.error('Failed to delete task:', err);
       message.error('删除失败: ' + (err.message || '请稍后重试'));
     }
   };
 
-  // 渲染进度条
-  const renderProgress = (task) => {
-    const statusColors = {
-      pending: '#d9d9d9',
-      queued: '#1890ff',
-      running: '#1890ff',
-      completed: '#52c41a',
-      failed: '#ff4d4f',
-      cancelled: '#faad14',
-      retrying: '#722ed1'
-    };
-
-    return (
-      <div className={styles.progressWrapper}>
-        <Progress
-          percent={task.progress || 0}
-          size="small"
-          strokeColor={statusColors[task.status]}
-          status={task.status === 'failed' ? 'exception' : undefined}
-        />
-        {task.currentNodeName && task.status === 'running' && (
-          <Text type="secondary" className={styles.currentNode}>
-            正在执行: {task.currentNodeName}
-          </Text>
-        )}
-        {task.errorMessage && task.status === 'failed' && (
-          <Text type="danger" className={styles.errorMessage}>
-            {task.errorMessage}
-          </Text>
-        )}
-      </div>
-    );
+  // 计算运行时长
+  const calcDuration = (record) => {
+    if (record.startedAt && record.completedAt) {
+      const ms = new Date(record.completedAt) - new Date(record.startedAt);
+      return Math.round(ms / 1000);
+    }
+    return null;
   };
 
   // 格式化持续时间
@@ -199,14 +171,9 @@ const TaskList = () => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours}小时${minutes}分钟`;
-    } else if (minutes > 0) {
-      return `${minutes}分钟${secs}秒`;
-    } else {
-      return `${secs}秒`;
-    }
+    if (hours > 0) return `${hours}小时${minutes}分钟`;
+    if (minutes > 0) return `${minutes}分${secs}秒`;
+    return `${secs}秒`;
   };
 
   // 表格列定义
@@ -215,13 +182,8 @@ const TaskList = () => {
       title: '任务名称',
       dataIndex: 'name',
       key: 'name',
-      render: (text, record) => (
-        <div>
-          <div className={styles.taskName}>{text}</div>
-          <Text type="secondary" className={styles.taskDesc}>
-            {record.description || '暂无描述'}
-          </Text>
-        </div>
+      render: (text) => (
+        <div className={styles.taskName}>{text}</div>
       )
     },
     {
@@ -242,21 +204,23 @@ const TaskList = () => {
     },
     {
       title: '进度',
+      dataIndex: 'progress',
       key: 'progress',
-      width: 200,
-      render: (_, record) => renderProgress(record)
-    },
-    {
-      title: '创建者',
-      dataIndex: 'createdByName',
-      key: 'createdByName',
-      width: 100
+      width: 150,
+      render: (progress, record) => (
+        <Progress
+          percent={progress || 0}
+          size="small"
+          strokeColor={record.status === 'failed' ? '#ff4d4f' : record.status === 'completed' ? '#52c41a' : '#1890ff'}
+          status={record.status === 'failed' ? 'exception' : undefined}
+        />
+      )
     },
     {
       title: '运行时长',
       key: 'duration',
-      width: 120,
-      render: (_, record) => formatDuration(record.resourceUsage?.duration)
+      width: 110,
+      render: (_, record) => formatDuration(calcDuration(record))
     },
     {
       title: '创建时间',
@@ -268,7 +232,7 @@ const TaskList = () => {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 180,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
@@ -282,8 +246,7 @@ const TaskList = () => {
 
           {record.status === 'running' && (
             <Popconfirm
-              title="确认取消"
-              description="确定要取消这个正在运行的任务吗？"
+              title="确定要取消这个任务吗？"
               onConfirm={() => handleCancel(record.id)}
               okText="确定"
               cancelText="取消"
@@ -304,26 +267,15 @@ const TaskList = () => {
             </Tooltip>
           )}
 
-          {record.status === 'completed' && (
-            <Tooltip title="查看结果">
-              <Button
-                type="text"
-                icon={<PlayCircleOutlined />}
-                onClick={() => navigate(`/tasks/${record.id}/results`)}
-              />
-            </Tooltip>
-          )}
-
           {(record.status === 'completed' || record.status === 'failed' || record.status === 'cancelled') && (
             <Popconfirm
-              title="确认删除"
-              description="确定要删除这个任务吗？"
+              title="确定要删除这个任务吗？"
               onConfirm={() => handleDelete(record.id)}
               okText="确定"
               cancelText="取消"
             >
               <Tooltip title="删除">
-                <Button type="text" danger icon={<CloseCircleOutlined />} />
+                <Button type="text" danger icon={<DeleteOutlined />} />
               </Tooltip>
             </Popconfirm>
           )}
@@ -331,70 +283,6 @@ const TaskList = () => {
       )
     }
   ];
-
-  // 渲染表格内容
-  const renderTableContent = () => {
-    if (loading && tasks.length === 0) {
-      return <Skeleton active paragraph={{ rows: 5 }} />;
-    }
-
-    if (error) {
-      return (
-        <Alert
-          message="加载失败"
-          description={error}
-          type="error"
-          showIcon
-          action={
-            <Button onClick={fetchTasks} icon={<ReloadOutlined />}>
-              重试
-            </Button>
-          }
-        />
-      );
-    }
-
-    if (!loading && tasks.length === 0) {
-      return (
-        <Empty
-          description="暂无任务数据"
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        >
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => navigate('/workflows?intent=run')}
-          >
-            新建任务
-          </Button>
-        </Empty>
-      );
-    }
-
-    return (
-      <>
-        <Table
-          columns={columns}
-          dataSource={tasks}
-          rowKey="id"
-          loading={loading}
-          pagination={false}
-          scroll={{ x: 1200 }}
-        />
-        <div className={styles.pagination}>
-          <Pagination
-            current={query.page}
-            pageSize={query.pageSize}
-            total={total}
-            showSizeChanger
-            showQuickJumper
-            showTotal={(total) => `共 ${total} 条`}
-            onChange={(page, pageSize) => setQuery({ ...query, page, pageSize })}
-          />
-        </div>
-      </>
-    );
-  };
 
   return (
     <div className={styles.container}>
@@ -415,7 +303,7 @@ const TaskList = () => {
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
-                onClick={() => navigate('/workflows?intent=run')}
+                onClick={() => navigate('/workflows')}
               >
                 新建任务
               </Button>
@@ -426,17 +314,20 @@ const TaskList = () => {
 
       <Card className={styles.filterCard}>
         <Row gutter={16} align="middle">
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <Search
-              placeholder="搜索任务名称或描述"
+          <Col xs={24} sm={12} md={6}>
+            <Select
+              placeholder="按工作流筛选"
               allowClear
-              enterButton={<SearchOutlined />}
-              value={query.keyword}
-              onChange={(e) => setQuery({ ...query, keyword: e.target.value })}
-              onSearch={() => fetchTasks()}
-            />
+              style={{ width: '100%' }}
+              value={query.workflowId}
+              onChange={(value) => setQuery({ ...query, workflowId: value, page: 1 })}
+            >
+              {workflows.map(wf => (
+                <Option key={wf.id} value={wf.id}>{wf.name}</Option>
+              ))}
+            </Select>
           </Col>
-          <Col xs={24} sm={12} md={8} lg={6}>
+          <Col xs={24} sm={12} md={6}>
             <Select
               placeholder="选择状态"
               allowClear
@@ -449,13 +340,7 @@ const TaskList = () => {
               ))}
             </Select>
           </Col>
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <RangePicker
-              style={{ width: '100%' }}
-              placeholder={['开始日期', '结束日期']}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={6} style={{ textAlign: 'right' }}>
+          <Col xs={24} sm={12} md={6}>
             <Text type="secondary">
               共 <Badge count={total} showZero className={styles.totalBadge} /> 个任务
             </Text>
@@ -464,7 +349,47 @@ const TaskList = () => {
       </Card>
 
       <Card className={styles.tableCard}>
-        {renderTableContent()}
+        {error ? (
+          <Alert
+            message="加载失败"
+            description={error}
+            type="error"
+            showIcon
+            action={
+              <Button onClick={fetchTasks} icon={<ReloadOutlined />}>
+                重试
+              </Button>
+            }
+          />
+        ) : !loading && tasks.length === 0 ? (
+          <Empty description="暂无任务数据">
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/workflows')}>
+              新建任务
+            </Button>
+          </Empty>
+        ) : (
+          <>
+            <Table
+              columns={columns}
+              dataSource={tasks}
+              rowKey="id"
+              loading={loading}
+              pagination={false}
+              scroll={{ x: 1100 }}
+            />
+            <div className={styles.pagination}>
+              <Pagination
+                current={query.page}
+                pageSize={query.pageSize}
+                total={total}
+                showSizeChanger
+                showQuickJumper
+                showTotal={(t) => `共 ${t} 条`}
+                onChange={(page, pageSize) => setQuery({ ...query, page, pageSize })}
+              />
+            </div>
+          </>
+        )}
       </Card>
     </div>
   );

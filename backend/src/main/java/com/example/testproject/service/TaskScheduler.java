@@ -638,7 +638,7 @@ public class TaskScheduler {
     }
 
     /**
-     * 启动资源使用量监控，定期采集容器状态并更新到 TaskNode
+     * 启动资源使用量监控，定期采集容器 CPU/内存并更新到 TaskNode
      */
     private ScheduledFuture<?> startResourceMonitoring(TaskNode taskNode, int timeoutSeconds) {
         return statsScheduler.scheduleAtFixedRate(() -> {
@@ -654,6 +654,17 @@ public class TaskScheduler {
                     resourceUsage.put("elapsedSeconds", elapsedSeconds);
                     resourceUsage.put("timeoutSeconds", timeoutSeconds);
                     resourceUsage.put("progressEstimate", Math.min(100, (int)(elapsedSeconds * 100.0 / timeoutSeconds)));
+                }
+                // 记录 CPU/内存
+                if (stats.containsKey("cpuUsagePercent")) {
+                    resourceUsage.put("cpuUsagePercent", stats.get("cpuUsagePercent"));
+                }
+                if (stats.containsKey("memoryUsageMB")) {
+                    resourceUsage.put("memoryUsageMB", stats.get("memoryUsageMB"));
+                    resourceUsage.put("memoryUsageBytes", stats.get("memoryUsageBytes"));
+                }
+                if (stats.containsKey("memoryUsagePercent")) {
+                    resourceUsage.put("memoryUsagePercent", stats.get("memoryUsagePercent"));
                 }
                 taskNode.setResourceUsage(objectMapper.writeValueAsString(resourceUsage));
                 taskNodeMapper.updateById(taskNode);

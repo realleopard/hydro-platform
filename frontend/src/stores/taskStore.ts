@@ -42,11 +42,11 @@ interface TaskState {
 
   // 动作
   fetchTasks: (params?: TaskQueryParams) => Promise<void>;
-  fetchTaskById: (id: number) => Promise<Task | null>;
+  fetchTaskById: (id: string) => Promise<any>;
   createTask: (data: CreateTaskRequest) => Promise<Task | null>;
-  cancelTask: (id: number) => Promise<boolean>;
-  retryTask: (id: number) => Promise<Task | null>;
-  deleteTask: (id: number) => Promise<boolean>;
+  cancelTask: (id: string) => Promise<boolean>;
+  retryTask: (id: string) => Promise<any>;
+  deleteTask: (id: string) => Promise<boolean>;
   fetchStatistics: () => Promise<void>;
   subscribeToTask: (taskId: number) => void;
   unsubscribeFromTask: (taskId: number) => void;
@@ -125,12 +125,12 @@ export const useTaskStore = create<TaskState>()(
       /**
        * 获取任务详情
        */
-      fetchTaskById: async (id: number): Promise<Task | null> => {
+      fetchTaskById: async (id: string): Promise<any> => {
         set({ isLoading: true, error: null });
         try {
-          const task = await taskService.getTaskById(id);
-          set({ currentTask: task, isLoading: false });
-          return task;
+          const task = await taskService.getTaskById(String(id));
+          set({ currentTask: task as any, isLoading: false });
+          return task as any;
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : '获取任务详情失败',
@@ -167,7 +167,7 @@ export const useTaskStore = create<TaskState>()(
       /**
        * 取消任务
        */
-      cancelTask: async (id: number): Promise<boolean> => {
+      cancelTask: async (id: string): Promise<boolean> => {
         set({ isLoading: true, error: null });
         try {
           await taskService.cancelTask(id);
@@ -194,7 +194,7 @@ export const useTaskStore = create<TaskState>()(
       /**
        * 重试任务
        */
-      retryTask: async (id: number): Promise<Task | null> => {
+      retryTask: async (id: string): Promise<any> => {
         set({ isLoading: true, error: null });
         try {
           const task = await taskService.retryTask(id);
@@ -218,7 +218,7 @@ export const useTaskStore = create<TaskState>()(
       /**
        * 删除任务
        */
-      deleteTask: async (id: number): Promise<boolean> => {
+      deleteTask: async (id: string): Promise<boolean> => {
         set({ isLoading: true, error: null });
         try {
           await taskService.deleteTask(id);

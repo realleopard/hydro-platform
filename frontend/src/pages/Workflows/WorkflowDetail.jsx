@@ -64,6 +64,10 @@ const WorkflowDetail = () => {
     try {
       const data = await workflowService.getWorkflowById(id);
       if (data) {
+        // definition 在后端是 String，需要 parse
+        if (typeof data.definition === 'string') {
+          try { data.definition = JSON.parse(data.definition); } catch { data.definition = { nodes: [], edges: [] }; }
+        }
         setWorkflow(data);
       } else {
         message.error('工作流不存在');
