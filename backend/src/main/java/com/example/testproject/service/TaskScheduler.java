@@ -47,6 +47,7 @@ public class TaskScheduler {
     private final DockerExecutor dockerExecutor;
     private final ModelService modelService;
     private final ObjectMapper objectMapper;
+    private final CouplingService couplingService;
 
     // 线程池用于异步执行任务
     private final ExecutorService executorService;
@@ -70,6 +71,7 @@ public class TaskScheduler {
                          DockerExecutor dockerExecutor,
                          ModelService modelService,
                          ObjectMapper objectMapper,
+                         CouplingService couplingService,
                          @Value("${task-scheduler.pool-size:10}") int poolSize) {
         this.taskMapper = taskMapper;
         this.taskNodeMapper = taskNodeMapper;
@@ -80,6 +82,7 @@ public class TaskScheduler {
         this.dockerExecutor = dockerExecutor;
         this.modelService = modelService;
         this.objectMapper = objectMapper;
+        this.couplingService = couplingService;
         this.executorService = Executors.newFixedThreadPool(poolSize);
         log.info("任务调度器初始化完成，线程池大小: {}", poolSize);
     }
@@ -404,19 +407,20 @@ public class TaskScheduler {
             ResourceLimits resourceLimits = parseResourceLimits(model.getResources());
 
             // 收集来自前置节点的数据映射
-            Map<String, Object> mappedInputs = collectPredecessorOutputs(
+            Map<String, Object> mappedInputs = couplingService.collectMappedInputs(
                     taskId, nodeId, config.getDependencies(), definition);
 
             // 准备环境变量（包含映射的输入数据）
-            Map<String, String> envVars = buildEnvironmentVariables(
+            Map<String, String> envVars = couplingService.buildEnvironmentVariables(
                     node, taskId, nodeId, mappedInputs);
 
             // 准备卷挂载
             Map<String, String> volumeMounts = buildVolumeMounts(taskId, nodeId, node);
 
-            // 准备输入数据文件（如果有映射的输入数据）
+            // 准备输入数据文件和前置节点输出文件
             if (!mappedInputs.isEmpty()) {
-                prepareInputData(taskId, nodeId, mappedInputs);
+                couplingService.prepareFileInputs(taskId, nodeId, mappedInputs);
+                couplingService.prepareInputData(taskId, nodeId, mappedInputs);
                 // 添加输入数据目录的卷挂载
                 String inputDir = System.getProperty("user.dir") + "/data/tasks/" + taskId + "/" + nodeId + "/input";
                 volumeMounts.put(inputDir, "/workspace/input");
@@ -468,7 +472,7 @@ public class TaskScheduler {
             if (result.isSuccess()) {
                 taskNode.setStatus("completed");
                 taskNode.setProgress(100);
-                taskNode.setOutputs(buildNodeOutputs(result));
+                taskNode.setOutputs(couplingService.buildNodeOutputs(taskId, nodeId, result.getStdout()));
                 taskNodeMapper.updateById(taskNode);
 
                 log.info("节点执行成功: taskId={}, nodeId={}, time={}ms",
