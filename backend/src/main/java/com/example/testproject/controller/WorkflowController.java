@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -87,8 +88,17 @@ public class WorkflowController {
      * 运行工作流
      */
     @PostMapping("/{id}/run")
-    public Result<Task> run(@PathVariable UUID id, @CurrentUser UUID userId) {
-        Task task = workflowService.runWorkflow(id, userId);
+    public Result<Task> run(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> body, @CurrentUser UUID userId) {
+        String inputs = null;
+        if (body != null && body.containsKey("inputs")) {
+            Object inputsObj = body.get("inputs");
+            if (inputsObj instanceof String) {
+                inputs = (String) inputsObj;
+            } else if (inputsObj != null) {
+                inputs = inputsObj.toString();
+            }
+        }
+        Task task = workflowService.runWorkflow(id, inputs, userId);
         return Result.success(task);
     }
 }

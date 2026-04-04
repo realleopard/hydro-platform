@@ -62,7 +62,7 @@ public class TaskNode implements Serializable {
     private String resourceUsage;
 
     /** 执行日志 */
-    @TableField(typeHandler = org.apache.ibatis.type.StringTypeHandler.class)
+    @TableField(value = "log", typeHandler = org.apache.ibatis.type.StringTypeHandler.class)
     private String logs;
 
     /** 错误信息 */

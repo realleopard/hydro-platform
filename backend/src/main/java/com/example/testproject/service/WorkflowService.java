@@ -25,7 +25,7 @@ public interface WorkflowService extends IService<Workflow> {
     /**
      * 运行工作流
      */
-    Task runWorkflow(UUID workflowId, UUID triggeredBy);
+    Task runWorkflow(UUID workflowId, String inputs, UUID triggeredBy);
     
     /**
      * 更新最后运行时间

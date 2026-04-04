@@ -41,7 +41,6 @@ import {
 } from '@ant-design/icons';
 import { WorkflowCanvas } from '../../components/WorkflowEditor';
 import { workflowService } from '../../services/workflowService';
-import { taskService } from '../../services/taskService';
 import styles from './WorkflowDetail.module.css';
 
 const WorkflowDetail = () => {
@@ -122,10 +121,10 @@ const WorkflowDetail = () => {
   const handleRunSubmit = async () => {
     try {
       const values = await runForm.validateFields();
-      const task = await taskService.createTask({
-        workflowId: id,
-        inputs: JSON.stringify(values),
-      });
+      const inputValues = { ...values };
+      delete inputValues.taskName;
+      delete inputValues.description;
+      const task = await workflowService.runWorkflow(id, inputValues);
       setRunModalVisible(false);
       message.success('工作流开始运行');
       navigate(`/tasks/${task.id}`);

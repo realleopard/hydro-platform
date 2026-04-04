@@ -47,16 +47,13 @@ public class WorkflowServiceImpl extends ServiceImpl<WorkflowMapper, Workflow> i
     
     @Override
     @Transactional
-    public Task runWorkflow(UUID workflowId, UUID triggeredBy) {
+    public Task runWorkflow(UUID workflowId, String inputs, UUID triggeredBy) {
         Workflow workflow = getById(workflowId);
         if (workflow == null) {
             throw new IllegalArgumentException("工作流不存在: " + workflowId);
         }
-        workflow.setRunCount(workflow.getRunCount() + 1);
-        workflow.setLastRunAt(LocalDateTime.now());
-        updateById(workflow);
 
-        return taskScheduler.submitTask(workflowId, null, triggeredBy);
+        return taskScheduler.submitTask(workflowId, inputs, triggeredBy);
     }
     
     @Override

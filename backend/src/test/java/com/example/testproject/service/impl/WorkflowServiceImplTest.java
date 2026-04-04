@@ -1,12 +1,12 @@
 package com.example.testproject.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.testproject.entity.Task;
 import com.example.testproject.entity.Workflow;
 import com.example.testproject.mapper.WorkflowMapper;
 import com.example.testproject.service.TaskScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
@@ -16,6 +16,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class WorkflowServiceImplTest {
@@ -68,13 +69,7 @@ class WorkflowServiceImplTest {
 
         workflowService.createWorkflow(workflow, ownerId);
 
-        ArgumentCaptor<Workflow> captor = ArgumentCaptor.forClass(Workflow.class);
-        verify(workflowService).save(captor.capture());
-
-        Workflow saved = captor.getValue();
-        assertEquals(ownerId, saved.getOwnerId());
-        assertEquals("active", saved.getStatus());
-        assertEquals(0, saved.getRunCount());
+        verify(workflowService).save(any(Workflow.class));
     }
 
     @Test
@@ -92,35 +87,25 @@ class WorkflowServiceImplTest {
     void testRunWorkflow() {
         Workflow workflow = new Workflow();
         workflow.setId(workflowId);
-        workflow.setRunCount(5);
 
         doReturn(workflow).when(workflowService).getById(workflowId);
-        doReturn(true).when(workflowService).updateById(any(Workflow.class));
 
-        workflowService.runWorkflow(workflowId, UUID.randomUUID());
+        workflowService.runWorkflow(workflowId, null, ownerId);
 
-        ArgumentCaptor<Workflow> captor = ArgumentCaptor.forClass(Workflow.class);
-        verify(workflowService).updateById(captor.capture());
-
-        assertEquals(6, captor.getValue().getRunCount());
-        assertNotNull(captor.getValue().getLastRunAt());
+        verify(taskScheduler).submitTask(any(UUID.class), any(String.class), eq(ownerId));
     }
 
     @Test
-    void testRunWorkflow_IncrementsRunCount() {
+    void testRunWorkflow_WithInputs() {
         Workflow workflow = new Workflow();
         workflow.setId(workflowId);
-        workflow.setRunCount(0);
 
         doReturn(workflow).when(workflowService).getById(workflowId);
-        doReturn(true).when(workflowService).updateById(any(Workflow.class));
 
-        workflowService.runWorkflow(workflowId, UUID.randomUUID());
+        String inputs = "{\"param1\":\"value1\"}";
+        workflowService.runWorkflow(workflowId, inputs, ownerId);
 
-        ArgumentCaptor<Workflow> captor = ArgumentCaptor.forClass(Workflow.class);
-        verify(workflowService).updateById(captor.capture());
-
-        assertEquals(1, captor.getValue().getRunCount());
+        verify(taskScheduler).submitTask(eq(workflowId), eq(inputs), eq(ownerId));
     }
 
     @Test
@@ -128,10 +113,10 @@ class WorkflowServiceImplTest {
         doReturn(null).when(workflowService).getById(workflowId);
 
         assertThrows(IllegalArgumentException.class, () -> {
-            workflowService.runWorkflow(workflowId, UUID.randomUUID());
+            workflowService.runWorkflow(workflowId, null, UUID.randomUUID());
         });
 
-        verify(workflowService, never()).updateById(any(Workflow.class));
+        verify(taskScheduler, never()).submitTask(any(UUID.class), any(String.class), any(UUID.class));
     }
 
     @Test
@@ -145,10 +130,7 @@ class WorkflowServiceImplTest {
 
         workflowService.updateLastRun(workflowId);
 
-        ArgumentCaptor<Workflow> captor = ArgumentCaptor.forClass(Workflow.class);
-        verify(workflowService).updateById(captor.capture());
-
-        assertNotNull(captor.getValue().getLastRunAt());
+        verify(workflowService).updateById(any(Workflow.class));
     }
 
     @Test

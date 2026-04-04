@@ -142,8 +142,18 @@ public class TaskScheduler {
         // 发布任务提交事件
         progressPublisher.publishTaskStatus(task.getId(), TaskStatus.PENDING, 0, "任务已提交，等待执行");
 
-        // 异步开始执行
-        executeTaskAsync(task, definition);
+        // 异步开始执行（通过线程池避免@Async自调用问题）
+        final WorkflowDefinition def = definition;
+        final UUID taskId = task.getId();
+        executorService.submit(() -> {
+            try {
+                executeTask(task, def);
+            } catch (Exception e) {
+                log.error("任务执行异常: taskId={}, error={}", taskId, e.getMessage(), e);
+                updateTaskStatus(taskId, TaskStatus.FAILED, 0, e.getMessage());
+                progressPublisher.publishTaskFailed(taskId, e.getMessage());
+            }
+        });
 
         return task;
     }
@@ -183,11 +193,14 @@ public class TaskScheduler {
         }
 
         // 更新状态为运行中
-        updateTaskStatus(taskId, TaskStatus.RUNNING, 0, null);
+        task.setStatus(TaskStatus.RUNNING.name());
+        task.setProgress(0);
         task.setStartedAt(LocalDateTime.now());
+        task.setUpdatedAt(LocalDateTime.now());
         taskMapper.updateById(task);
 
-        // 发布任务开始事件
+        // 发布任务状态和开始事件
+        progressPublisher.publishTaskStatus(taskId, TaskStatus.RUNNING, 0, null);
         progressPublisher.publishTaskStarted(taskId);
 
         log.info("开始执行任务: taskId={}, 共 {} 个阶段", taskId, plan.getStages().size());
@@ -295,6 +308,7 @@ public class TaskScheduler {
             processedNodes += stage.getNodeIds().size();
             int progress = (int) ((processedNodes * 100.0) / totalNodes);
             task.setProgress(progress);
+            task.setUpdatedAt(LocalDateTime.now());
             taskMapper.updateById(task);
 
             // 发布进度更新
@@ -310,9 +324,14 @@ public class TaskScheduler {
 
         // 任务完成
         log.info("任务执行完成: taskId={}", taskId);
-        updateTaskStatus(taskId, TaskStatus.COMPLETED, 100, null);
+        task.setStatus(TaskStatus.COMPLETED.name());
+        task.setProgress(100);
         task.setCompletedAt(LocalDateTime.now());
+        task.setUpdatedAt(LocalDateTime.now());
         taskMapper.updateById(task);
+
+        // 发布任务状态更新事件
+        progressPublisher.publishTaskStatus(taskId, TaskStatus.COMPLETED, 100, null);
 
         // 发布任务完成事件
         progressPublisher.publishTaskCompleted(taskId);

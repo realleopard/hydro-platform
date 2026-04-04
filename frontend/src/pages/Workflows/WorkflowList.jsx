@@ -32,7 +32,6 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { workflowService } from '../../services/workflowService';
-import { taskService } from '../../services/taskService';
 import styles from './WorkflowList.module.css';
 
 const { Search } = Input;
@@ -120,10 +119,7 @@ const WorkflowList = () => {
   // 运行工作流（创建任务）
   const handleRun = async (record) => {
     try {
-      const result = await taskService.createTask({
-        workflowId: record.id,
-        inputs: '{}'
-      });
+      const result = await workflowService.runWorkflow(record.id);
       message.success('任务已创建');
       navigate(`/tasks/${result.id}`);
     } catch (error) {

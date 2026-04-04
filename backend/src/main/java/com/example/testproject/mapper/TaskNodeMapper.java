@@ -49,7 +49,7 @@ public interface TaskNodeMapper extends BaseMapper<TaskNode> {
     /**
      * 追加日志
      */
-    @Update("UPDATE task_nodes SET logs = CONCAT(COALESCE(logs, ''), #{logContent}), updated_at = NOW() WHERE id = #{id}")
+    @Update("UPDATE task_nodes SET log = CONCAT(COALESCE(log, ''), #{logContent}), updated_at = NOW() WHERE id = #{id}")
     int appendLog(@Param("id") UUID id, @Param("logContent") String logContent);
 
     /**

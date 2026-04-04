@@ -122,15 +122,6 @@ public class TaskController {
     }
 
     /**
-     * 获取任务的执行节点
-     */
-    @GetMapping("/{id}/nodes")
-    public Result<List<TaskNode>> getNodes(@PathVariable UUID id) {
-        List<TaskNode> nodes = taskNodeService.getTaskNodes(id);
-        return Result.success(nodes);
-    }
-
-    /**
      * 获取任务统计信息
      */
     @GetMapping("/statistics")

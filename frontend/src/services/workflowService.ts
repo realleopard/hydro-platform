@@ -174,8 +174,8 @@ export const workflowService = {
    * @param id 工作流 ID
    * @returns 执行历史列表
    */
-  runWorkflow: async (id: string): Promise<Task> => {
-    return api.post<Task>(`/workflows/${id}/run`);
+  runWorkflow: async (id: string, inputs?: Record<string, any>): Promise<Task> => {
+    return api.post<Task>(`/workflows/${id}/run`, inputs ? { inputs: JSON.stringify(inputs) } : {});
   },
 
   getExecutionHistory: async (
