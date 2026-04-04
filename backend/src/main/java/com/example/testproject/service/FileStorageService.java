@@ -132,29 +132,26 @@ public class FileStorageService {
             List<String> headers = new ArrayList<>();
             List<Map<String, Object>> rows = new ArrayList<>();
             int totalLines = 0;
+            int rowCount = 0;
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(filePath)))) {
                 String headerLine = reader.readLine();
                 if (headerLine == null) {
                     return Map.of("headers", headers, "rows", rows, "totalRows", 0, "previewRows", 0);
                 }
-                // 解析表头
                 headers = parseCsvLine(headerLine);
 
                 String line;
-                int rowCount = 0;
                 while ((line = reader.readLine()) != null) {
                     totalLines++;
-                    if (rowCount < maxRows) {
+                    if (rows.size() < maxRows) {
                         List<String> values = parseCsvLine(line);
                         Map<String, Object> row = new LinkedHashMap<>();
                         for (int i = 0; i < headers.size(); i++) {
                             String val = i < values.size() ? values.get(i) : "";
-                            // 尝试解析数字
                             row.put(headers.get(i), tryParseNumber(val));
                         }
                         rows.add(row);
-                        rowCount++;
                     }
                 }
             }

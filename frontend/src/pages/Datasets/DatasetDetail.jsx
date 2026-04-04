@@ -28,6 +28,7 @@ import {
   EyeOutlined,
 } from '@ant-design/icons';
 import { datasetService } from '../../services/datasetService';
+import { formatFileSize } from '../../utils/format';
 import { DATASET_DATA_TYPE_MAP, DATASET_DATA_TYPE_OPTIONS, DATASET_VISIBILITY_MAP, DATASET_VISIBILITY_OPTIONS } from '../../types';
 
 const { Title, Text } = Typography;
@@ -126,14 +127,6 @@ const DatasetDetail = () => {
     } finally {
       setDownloading(false);
     }
-  };
-
-  const formatFileSize = (bytes) => {
-    if (!bytes) return '--';
-    if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(2)} GB`;
-    if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(2)} MB`;
-    if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-    return `${bytes} B`;
   };
 
   if (loading) {

@@ -30,6 +30,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { datasetService } from '../../services/datasetService';
 import PageHeader from '../../components/Common/PageHeader';
+import { formatFileSize } from '../../utils/format';
 import {
   DATASET_DATA_TYPE_OPTIONS,
   DATASET_DATA_TYPE_MAP,
@@ -162,14 +163,6 @@ const DatasetList = () => {
     } catch (error) {
       message.error('删除失败: ' + (error.message || ''));
     }
-  };
-
-  const formatFileSize = (bytes) => {
-    if (!bytes) return '--';
-    if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(2)} GB`;
-    if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(2)} MB`;
-    if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-    return `${bytes} B`;
   };
 
   const columns = [

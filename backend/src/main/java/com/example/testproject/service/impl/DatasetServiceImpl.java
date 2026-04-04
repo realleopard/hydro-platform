@@ -59,7 +59,6 @@ public class DatasetServiceImpl extends ServiceImpl<DatasetMapper, Dataset> impl
         dataset.setStorageType("local");
         dataset.setDownloadCount(0);
 
-        // 解析时间范围
         if (request.getTemporalStart() != null && !request.getTemporalStart().isBlank()) {
             dataset.setTemporalStart(LocalDateTime.parse(request.getTemporalStart(), DT_FMT));
         }
@@ -74,7 +73,6 @@ public class DatasetServiceImpl extends ServiceImpl<DatasetMapper, Dataset> impl
             dataset.setMetadata(request.getMetadata());
         }
 
-        // 存储文件
         String storagePath = fileStorageService.storeFile(file, dataset.getId());
         dataset.setStoragePath(storagePath);
         dataset.setFileSize(file.getSize());

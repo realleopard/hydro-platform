@@ -110,7 +110,7 @@ public class DatasetController {
     }
 
     /**
-     * 下载数据集文件
+     * 下载数数据集文件
      */
     @GetMapping("/{id}/download")
     public ResponseEntity<Resource> download(@PathVariable UUID id) {
@@ -118,7 +118,7 @@ public class DatasetController {
         Dataset dataset = datasetService.getById(id);
 
         String filename = dataset.getStoragePath() != null
-                ? dataset.getStoragePath().substring(dataset.getStoragePath().lastIndexOf('/') + 1)
+                ? java.nio.file.Paths.get(dataset.getStoragePath()).getFileName().toString()
                 : dataset.getName();
         String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
 

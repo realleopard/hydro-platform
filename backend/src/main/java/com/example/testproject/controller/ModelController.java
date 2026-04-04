@@ -12,11 +12,12 @@ import com.example.testproject.service.ModelReviewService;
 import com.example.testproject.service.ModelValidationService;
 import com.example.testproject.service.DockerRegistryService;
 import com.example.testproject.validation.ValidationMetrics;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,7 +29,9 @@ import java.util.UUID;
 @RequestMapping("/api/v1/models")
 @RequiredArgsConstructor
 public class ModelController {
-    
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final ModelService modelService;
     private final ModelVersionService modelVersionService;
     private final ModelReviewService modelReviewService;
@@ -77,8 +80,8 @@ public class ModelController {
         }
 
         // 用 Jackson 将 model 转为 Map，再附加验证指标
-        Map<String, Object> result = new com.fasterxml.jackson.databind.ObjectMapper()
-                .convertValue(model, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+        Map<String, Object> result = OBJECT_MAPPER
+                .convertValue(model, new TypeReference<Map<String, Object>>() {});
 
         // 附加最新验证指标
         try {
