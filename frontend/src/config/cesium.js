@@ -26,25 +26,25 @@ export const CESIUM_CONFIG = {
     roll: 0
   },
 
-  // 地形配置
+  // 地形配置 — 使用 STK terrain (不需要 Ion token)
   terrain: {
     url: 'https://assets.agi.com/stk-terrain/v1/tilesets/world/tiles',
     requestWaterMask: true,
     requestVertexNormals: true
   },
 
-  // 影像图层
+  // 影像图层 — OSM 不需要认证
   imageryLayers: [
+    {
+      name: 'OpenStreetMap',
+      provider: 'OSM',
+      url: 'https://a.tile.openstreetmap.org/'
+    },
     {
       name: 'Bing Maps 卫星影像',
       provider: 'BingMaps',
       key: 'bingMapsKey'
     },
-    {
-      name: 'OpenStreetMap',
-      provider: 'OSM',
-      url: 'https://a.tile.openstreetmap.org/'
-    }
   ],
 
   // 性能配置

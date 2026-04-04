@@ -2,6 +2,71 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import * as Cesium from 'cesium';
 
 /**
+ * 用 Canvas API 生成粒子纹理，避免依赖外部 PNG 文件
+ */
+function generateTexture(width, height, drawFn) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  drawFn(ctx, width, height);
+  return canvas.toDataURL();
+}
+
+function getRainDropTexture() {
+  return generateTexture(4, 20, (ctx, w, h) => {
+    const gradient = ctx.createLinearGradient(w / 2, 0, w / 2, h);
+    gradient.addColorStop(0, 'rgba(150, 200, 255, 0.0)');
+    gradient.addColorStop(0.2, 'rgba(150, 200, 255, 0.8)');
+    gradient.addColorStop(0.8, 'rgba(100, 170, 255, 0.6)');
+    gradient.addColorStop(1, 'rgba(100, 170, 255, 0.0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+  });
+}
+
+function getWaterParticleTexture() {
+  return generateTexture(8, 8, (ctx, w, h) => {
+    const gradient = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    gradient.addColorStop(0, 'rgba(50, 150, 255, 0.9)');
+    gradient.addColorStop(0.6, 'rgba(30, 120, 220, 0.5)');
+    gradient.addColorStop(1, 'rgba(20, 80, 180, 0.0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+  });
+}
+
+function getSnowFlakeTexture() {
+  return generateTexture(6, 6, (ctx, w, h) => {
+    const gradient = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+    gradient.addColorStop(0.5, 'rgba(230, 240, 255, 0.6)');
+    gradient.addColorStop(1, 'rgba(200, 220, 255, 0.0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+  });
+}
+
+function getVaporTexture() {
+  return generateTexture(20, 20, (ctx, w, h) => {
+    const gradient = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+    gradient.addColorStop(0.4, 'rgba(200, 220, 255, 0.15)');
+    gradient.addColorStop(1, 'rgba(180, 200, 240, 0.0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+  });
+}
+
+// 缓存纹理
+const TEXTURES = {
+  rainfall: getRainDropTexture(),
+  runoff: getWaterParticleTexture(),
+  snowfall: getSnowFlakeTexture(),
+  evaporation: getVaporTexture(),
+};
+
+/**
  * 粒子系统组件 - 用于渲染降雨、径流等水文特效
  */
 const ParticleSystem = ({ viewer, type, data, options = {} }) => {
@@ -14,7 +79,7 @@ const ParticleSystem = ({ viewer, type, data, options = {} }) => {
       const { longitude, latitude, height = 5000 } = pos;
 
       return viewer.scene.primitives.add(new Cesium.ParticleSystem({
-        image: '/textures/rain-drop.png',
+        image: TEXTURES.rainfall,
         startColor: new Cesium.Color(0.8, 0.9, 1.0, 0.6 * intensity),
         endColor: new Cesium.Color(0.8, 0.9, 1.0, 0.0),
         startScale: 1.0,
@@ -42,7 +107,6 @@ const ParticleSystem = ({ viewer, type, data, options = {} }) => {
   const createRunoffParticles = useCallback((path, flowRate = 1.0) => {
     if (!viewer || !path.length) return;
 
-    // 创建沿路径的粒子系统
     const systems = [];
     for (let i = 0; i < path.length - 1; i++) {
       const start = path[i];
@@ -52,7 +116,7 @@ const ParticleSystem = ({ viewer, type, data, options = {} }) => {
       const midHeight = ((start.height || 0) + (end.height || 0)) / 2;
 
       const system = viewer.scene.primitives.add(new Cesium.ParticleSystem({
-        image: '/textures/water-particle.png',
+        image: TEXTURES.runoff,
         startColor: new Cesium.Color(0.0, 0.6, 1.0, 0.8 * flowRate),
         endColor: new Cesium.Color(0.0, 0.4, 0.8, 0.0),
         startScale: 0.5,
@@ -83,7 +147,7 @@ const ParticleSystem = ({ viewer, type, data, options = {} }) => {
       const { longitude, latitude, height = 3000 } = pos;
 
       return viewer.scene.primitives.add(new Cesium.ParticleSystem({
-        image: '/textures/snow-flake.png',
+        image: TEXTURES.snowfall,
         startColor: new Cesium.Color(1.0, 1.0, 1.0, 0.8 * intensity),
         endColor: new Cesium.Color(1.0, 1.0, 1.0, 0.0),
         startScale: 0.5,
@@ -100,7 +164,6 @@ const ParticleSystem = ({ viewer, type, data, options = {} }) => {
           Cesium.Cartesian3.fromDegrees(longitude, latitude, height)
         ),
         updateCallback: (particle, dt) => {
-          // 添加飘动效果
           const time = Date.now() / 1000;
           particle.velocity.x += Math.sin(time + particle.age) * 0.5;
           particle.velocity.y += Math.cos(time + particle.age) * 0.5;
@@ -118,7 +181,7 @@ const ParticleSystem = ({ viewer, type, data, options = {} }) => {
       const { longitude, latitude, height = 0 } = pos;
 
       return viewer.scene.primitives.add(new Cesium.ParticleSystem({
-        image: '/textures/vapor.png',
+        image: TEXTURES.evaporation,
         startColor: new Cesium.Color(1.0, 1.0, 1.0, 0.3 * rate),
         endColor: new Cesium.Color(1.0, 1.0, 1.0, 0.0),
         startScale: 1.0,
@@ -152,10 +215,8 @@ const ParticleSystem = ({ viewer, type, data, options = {} }) => {
   useEffect(() => {
     if (!viewer || !data) return;
 
-    // 清除现有粒子
     clearParticles();
 
-    // 根据类型创建相应的粒子系统
     switch (type) {
       case 'rainfall':
         createRainfallParticles(data, options.intensity);

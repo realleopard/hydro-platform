@@ -155,6 +155,7 @@ const VisualizationPage = () => {
   });
   const [rainfallData, setRainfallData] = useState({ stations: [], min: 0, max: 150 });
   const [riverData, setRiverData] = useState({ points: [], min: 0, max: 0 });
+  const [gridData, setGridData] = useState({ grid: [], min: 0, max: 0 });
   const [particlePositions, setParticlePositions] = useState([]);
   const [spatialLoading, setSpatialLoading] = useState(true);
   const [spatialError, setSpatialError] = useState(null);
@@ -416,6 +417,24 @@ const VisualizationPage = () => {
         setRiverData({ points: allPoints, min: Math.min(...vals), max: Math.max(...vals) });
       }
     }
+
+    if (activeDataType === 'grid2d') {
+      const dayData = getRainfallByDay(clampedIndex);
+      const avgRainfall = dayData.averageRainfall;
+      // 生成 2D 网格: 经度 108-114, 纬度 29-33, 0.5 度间隔
+      const grid = [];
+      const step = 0.5;
+      for (let lon = 108; lon <= 114; lon += step) {
+        for (let lat = 29; lat <= 33; lat += step) {
+          // 简单距离衰减 + 随机扰动
+          const distFactor = Math.random() * 0.6 + 0.7;
+          const value = avgRainfall * distFactor;
+          grid.push({ longitude: lon, latitude: lat, value, size: step });
+        }
+      }
+      const vals = grid.map(g => g.value);
+      setGridData({ grid, min: Math.min(...vals), max: Math.max(...vals) });
+    }
   }, [activeDataType, hydrologyData.rivers, startTime]);
 
   const handlePlayStateChange = useCallback((playing) => {
@@ -493,7 +512,11 @@ const VisualizationPage = () => {
             <DataVisualization
               viewer={viewer}
               type={activeDataType}
-              data={activeDataType === 'rainfall' ? rainfallData : riverData}
+              data={
+                activeDataType === 'rainfall' ? rainfallData :
+                activeDataType === 'grid2d' ? gridData :
+                riverData
+              }
               options={{ showLabels: true, colormap }}
             />
           )}
@@ -501,11 +524,11 @@ const VisualizationPage = () => {
           {/* 图例 */}
           {activeDataType && (
             <Legend
-              colormap={activeDataType === 'rainfall' ? 'rainfall' : 'flow'}
-              min={activeDataType === 'rainfall' ? rainfallData.min : riverData.min}
-              max={activeDataType === 'rainfall' ? rainfallData.max : riverData.max}
-              unit={activeDataType === 'rainfall' ? 'mm' : 'm³/s'}
-              title={activeDataType === 'rainfall' ? '降雨量' : '流量'}
+              colormap={activeDataType === 'rainfall' ? 'rainfall' : colormap}
+              min={activeDataType === 'rainfall' ? rainfallData.min : activeDataType === 'grid2d' ? gridData.min : riverData.min}
+              max={activeDataType === 'rainfall' ? rainfallData.max : activeDataType === 'grid2d' ? gridData.max : riverData.max}
+              unit={activeDataType === 'rainfall' ? 'mm' : activeDataType === 'grid2d' ? 'mm' : 'm³/s'}
+              title={activeDataType === 'rainfall' ? '降雨量' : activeDataType === 'grid2d' ? '降雨分布' : '流量'}
             />
           )}
 

@@ -68,7 +68,7 @@ const DataVisualization = ({ viewer, type, data, options = {} }) => {
     const { colormap = 'jet', opacity = 0.7 } = opts;
 
     gridData.grid.forEach(cell => {
-      const { longitude, latitude, value, size = 100 } = cell;
+      const { longitude, latitude, value, size = 0.01 } = cell;
       const color = getColorFromColormap(value, gridData.min, gridData.max, colormap);
 
       const entity = viewer.entities.add({
