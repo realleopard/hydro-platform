@@ -57,9 +57,12 @@ const toBackendDefinition = (rfDef) => {
     id: e.id,
     source: e.source,
     target: e.target,
+    ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
+    ...(e.targetHandle ? { targetHandle: e.targetHandle } : {}),
     ...(e.data?.dataMapping && Object.keys(e.data.dataMapping).length > 0
       ? { dataMapping: e.data.dataMapping }
       : {}),
+    ...(e.data?.condition ? { condition: e.data.condition } : {}),
   }));
 
   return { nodes, edges };
@@ -87,17 +90,25 @@ const toReactFlowDefinition = (backendDef) => {
 
   const edges = (backendDef?.edges || []).map(e => {
     const hasMapping = e.dataMapping && Object.keys(e.dataMapping).length > 0;
+    const hasCondition = e.condition && e.condition.trim().length > 0;
+    let edgeType = 'custom';
+    if (hasCondition) edgeType = 'condition';
+    else if (hasMapping) edgeType = 'dataFlow';
+
     return {
       id: e.id,
       source: e.source,
       target: e.target,
-      type: hasMapping ? 'dataFlow' : 'custom',
-      ...(hasMapping ? {
-        data: {
+      sourceHandle: e.sourceHandle || undefined,
+      targetHandle: e.targetHandle || undefined,
+      type: edgeType,
+      data: {
+        ...(hasMapping ? {
           dataMapping: e.dataMapping,
           mapping: Object.entries(e.dataMapping).map(([t, s]) => `${s} → ${t}`).join(', '),
-        },
-      } : {}),
+        } : {}),
+        ...(hasCondition ? { condition: e.condition } : {}),
+      },
     };
   });
 

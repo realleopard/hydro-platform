@@ -287,6 +287,24 @@
   white-space: nowrap;
 }
 
+/* 条件边标签 */
+.conditionLabel {
+  display: flex;
+  align-items: center;
+  background-color: #f9f0ff;
+  border: 1px solid #d3adf7;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.conditionCode {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11px;
+  color: #722ed1;
+}
+
 /* 帮助面板 */
 .helpPanel {
   background-color: rgba(255, 255, 255, 0.95);

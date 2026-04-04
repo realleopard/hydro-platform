@@ -84,7 +84,10 @@ export interface WorkflowEdge {
   id: string;
   source: string;
   target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
   dataMapping?: Record<string, string>;
+  condition?: string;
 }
 
 export interface Workflow {

@@ -21,6 +21,12 @@ public class WorkflowEdge {
     /** 数据映射配置 */
     private Map<String, String> dataMapping;
 
+    /** 源端口 Handle ID */
+    private String sourceHandle;
+
+    /** 目标端口 Handle ID */
+    private String targetHandle;
+
     /** 条件表达式（条件分支时使用） */
     private String condition;
 }

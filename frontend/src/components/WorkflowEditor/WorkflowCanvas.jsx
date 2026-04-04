@@ -11,7 +11,7 @@ import ReactFlow, {
   ReactFlowProvider,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { message, Modal, Form, Input, Select, Menu, Dropdown, Table, Tag, Tooltip, Space, Button } from 'antd';
+import { message, Modal, Form, Input, Select, Menu, Dropdown, Table, Tag, Tooltip, Space, Button, Tabs, InputNumber } from 'antd';
 import {
   DeleteOutlined,
   CopyOutlined,
@@ -20,6 +20,7 @@ import {
   EyeOutlined,
   WarningOutlined,
   SwapOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import { nodeTypes } from './NodeTypes';
 import { edgeTypes } from './EdgeTypes';
@@ -125,6 +126,11 @@ const CanvasContent = ({
   const [mappingConfig, setMappingConfig] = useState({}); // { targetPortName: sourcePortName }
   const [editingEdgeId, setEditingEdgeId] = useState(null);
 
+  // 条件编辑弹窗状态
+  const [conditionModalVisible, setConditionModalVisible] = useState(false);
+  const [conditionEdgeId, setConditionEdgeId] = useState(null);
+  const [conditionExpression, setConditionExpression] = useState('');
+
   const { project, fitView, getNodes, getEdges } = useReactFlow();
 
   // 加载工作流数据
@@ -133,15 +139,23 @@ const CanvasContent = ({
       const { nodes: workflowNodes = [], edges: workflowEdges = [] } = workflow.definition;
       setNodes(workflowNodes);
       // 恢复 edges 时设置正确的 type 和 data
-      setEdges(workflowEdges.map(e => ({
-        ...e,
-        type: (e.data?.dataMapping && Object.keys(e.data.dataMapping).length > 0) ? 'dataFlow' : 'custom',
-        data: {
-          ...e.data,
-          onDelete: handleDeleteEdge,
-          onEdit: handleEditEdgeMapping,
-        },
-      })));
+      setEdges(workflowEdges.map(e => {
+        const hasMapping = e.data?.dataMapping && Object.keys(e.data.dataMapping).length > 0;
+        const hasCondition = e.data?.condition;
+        let edgeType = 'custom';
+        if (hasCondition) edgeType = 'condition';
+        else if (hasMapping) edgeType = 'dataFlow';
+        return {
+          ...e,
+          type: edgeType,
+          data: {
+            ...e.data,
+            onDelete: handleDeleteEdge,
+            onEdit: handleEditEdgeMapping,
+            onEditCondition: handleEditCondition,
+          },
+        };
+      }));
       setIsDirty(false);
     }
   }, [workflow]);
@@ -245,13 +259,13 @@ const CanvasContent = ({
         ...params,
         id: `e${params.source}-${params.target}`,
         type: 'custom',
-        data: { onDelete: handleDeleteEdge, onEdit: handleEditEdgeMapping },
+        data: { onDelete: handleDeleteEdge, onEdit: handleEditEdgeMapping, onEditCondition: handleEditCondition },
       };
       setEdges((eds) => addEdge(newEdge, eds));
       setIsDirty(true);
       saveHistory();
     },
-    [setEdges, saveHistory, getNodes, handleDeleteEdge, handleEditEdgeMapping]
+    [setEdges, saveHistory, getNodes, handleDeleteEdge, handleEditEdgeMapping, handleEditCondition]
   );
 
   // 确认数据映射
@@ -269,6 +283,7 @@ const CanvasContent = ({
       data: {
         onDelete: handleDeleteEdge,
         onEdit: handleEditEdgeMapping,
+        onEditCondition: handleEditCondition,
         dataMapping: hasMapping ? mappingConfig : undefined,
         mapping: hasMapping
           ? Object.entries(mappingConfig).map(([t, s]) => `${s} → ${t}`).join(', ')
@@ -295,10 +310,52 @@ const CanvasContent = ({
     }
   }, [mappingConfig, pendingConnection, editingEdgeId, mappingSourceNode, mappingTargetNode, setEdges, saveHistory, handleDeleteEdge, handleEditEdgeMapping]);
 
-  // 双击边编辑映射
+  // 双击边 — 如果已有条件则编辑条件，否则编辑映射
   const onEdgeDoubleClick = useCallback((_, edge) => {
-    handleEditEdgeMapping(edge.id);
-  }, [handleEditEdgeMapping]);
+    if (edge.data?.condition) {
+      handleEditCondition(edge.id);
+    } else {
+      handleEditEdgeMapping(edge.id);
+    }
+  }, [handleEditEdgeMapping, handleEditCondition]);
+
+  // 打开条件编辑弹窗
+  const handleEditCondition = useCallback((edgeId) => {
+    const edges = getEdges();
+    const edge = edges.find(e => e.id === edgeId);
+    setConditionEdgeId(edgeId);
+    setConditionExpression(edge?.data?.condition || '');
+    setConditionModalVisible(true);
+  }, [getEdges]);
+
+  // 保存条件
+  const handleConditionSave = useCallback(() => {
+    if (!conditionEdgeId) return;
+    setEdges(eds => eds.map(e => {
+      if (e.id !== conditionEdgeId) return e;
+      const hasMapping = e.data?.dataMapping && Object.keys(e.data.dataMapping).length > 0;
+      const hasCondition = conditionExpression.trim().length > 0;
+      let newType = 'custom';
+      if (hasCondition) newType = 'condition';
+      else if (hasMapping) newType = 'dataFlow';
+      return {
+        ...e,
+        type: newType,
+        data: {
+          ...e.data,
+          condition: conditionExpression.trim() || undefined,
+          onDelete: e.data?.onDelete,
+          onEdit: e.data?.onEdit,
+          onEditCondition: e.data?.onEditCondition,
+        },
+      };
+    }));
+    setConditionModalVisible(false);
+    setConditionEdgeId(null);
+    setConditionExpression('');
+    saveHistory();
+    setIsDirty(true);
+  }, [conditionEdgeId, conditionExpression, setEdges, saveHistory]);
 
   // 节点选中
   const onNodeClick = useCallback((_, node) => {
@@ -315,10 +372,18 @@ const CanvasContent = ({
   const onNodeDoubleClick = useCallback((_, node) => {
     setSelectedNode(node);
     setNodeConfigVisible(true);
+    const config = node.data?.config || {};
+    const envObj = config.env || {};
+    const envList = Object.entries(envObj).map(([key, value]) => ({ key, value }));
+    const volList = (config.volumes || []).map(v => ({ host: v.host, container: v.container }));
     configForm.setFieldsValue({
       label: node.data?.label || '',
       modelId: node.data?.model?.id,
-      ...node.data,
+      description: node.data?.description || config.description || '',
+      timeout: config.timeout || 3600,
+      command: config.command || '',
+      envVars: envList.length > 0 ? envList : undefined,
+      volumes: volList.length > 0 ? volList : undefined,
     });
   }, [configForm]);
 
@@ -556,12 +621,31 @@ const CanvasContent = ({
   const handleNodeConfigSave = useCallback(() => {
     configForm.validateFields().then((values) => {
       if (selectedNode) {
+        // Build config object from form values
+        const envObj = {};
+        if (values.envVars) {
+          values.envVars.forEach(({ key, value }) => { if (key) envObj[key] = value; });
+        }
+        const volList = (values.volumes || []).filter(v => v.host && v.container);
+        const config = {
+          description: values.description,
+          timeout: values.timeout,
+          command: values.command || undefined,
+          env: Object.keys(envObj).length > 0 ? envObj : undefined,
+          volumes: volList.length > 0 ? volList : undefined,
+        };
+
         setNodes((nds) =>
           nds.map((n) =>
             n.id === selectedNode.id
               ? {
                   ...n,
-                  data: { ...n.data, ...values },
+                  data: {
+                    ...n.data,
+                    label: values.label,
+                    ...(values.modelId ? { model: { ...(n.data.model || {}), id: values.modelId } } : {}),
+                    config,
+                  },
                 }
               : n
           )
@@ -850,19 +934,22 @@ const CanvasContent = ({
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        onConnect={readOnly ? undefined : onConnect}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
-        onNodeDoubleClick={onNodeDoubleClick}
-        onNodeContextMenu={onNodeContextMenu}
+        onNodeDoubleClick={readOnly ? undefined : onNodeDoubleClick}
+        onNodeContextMenu={readOnly ? undefined : onNodeContextMenu}
         onEdgeDoubleClick={onEdgeDoubleClick}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
+        onDragOver={readOnly ? undefined : onDragOver}
+        onDrop={readOnly ? undefined : onDrop}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        nodesDraggable={!readOnly}
+        nodesConnectable={!readOnly}
+        elementsSelectable={!readOnly}
         fitView
         attributionPosition="bottom-right"
-        deleteKeyCode={['Backspace', 'Delete']}
+        deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']}
         multiSelectionKeyCode={['Control', 'Meta']}
         selectionKeyCode={['Shift']}
         className={styles.reactFlow}
@@ -920,36 +1007,156 @@ const CanvasContent = ({
         onOk={handleNodeConfigSave}
         onCancel={() => setNodeConfigVisible(false)}
         destroyOnClose
+        width={640}
       >
         <Form form={configForm} layout="vertical">
-          <Form.Item
-            name="label"
-            label="节点名称"
-            rules={[{ required: true, message: '请输入节点名称' }]}
-          >
-            <Input placeholder="输入节点名称" />
-          </Form.Item>
-
-          {selectedNode?.type === 'model' && (
-            <Form.Item name="modelId" label="选择模型">
-              <Select placeholder="选择模型" allowClear>
-                {models?.map((model) => (
-                  <Option key={model.id} value={model.id}>
-                    {model.name}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-          )}
-
-          <Form.Item name="description" label="描述">
-            <Input.TextArea rows={3} placeholder="输入节点描述" />
-          </Form.Item>
+          <Tabs items={[
+            {
+              key: 'basic',
+              label: '基本设置',
+              children: (
+                <>
+                  <Form.Item name="label" label="节点名称" rules={[{ required: true, message: '请输入节点名称' }]}>
+                    <Input placeholder="输入节点名称" />
+                  </Form.Item>
+                  {selectedNode?.type === 'model' && (
+                    <Form.Item name="modelId" label="选择模型">
+                      <Select placeholder="选择模型" allowClear>
+                        {models?.map((model) => (
+                          <Option key={model.id} value={model.id}>
+                            {model.name}
+                          </Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
+                  )}
+                  <Form.Item name="description" label="描述">
+                    <Input.TextArea rows={2} placeholder="输入节点描述" />
+                  </Form.Item>
+                </>
+              ),
+            },
+            {
+              key: 'execution',
+              label: '执行配置',
+              children: (
+                <>
+                  <Form.Item name="timeout" label="超时时间（秒）" initialValue={3600}>
+                    <InputNumber min={60} max={86400} style={{ width: '100%' }} placeholder="3600" />
+                  </Form.Item>
+                  <Form.Item name="command" label="执行命令" extra="覆盖镜像默认命令，如 python run.py">
+                    <Input.TextArea rows={2} placeholder='例如: python run.py --input /workspace/input/data.json' />
+                  </Form.Item>
+                </>
+              ),
+            },
+            {
+              key: 'env',
+              label: '环境变量',
+              children: (
+                <Form.List name="envVars">
+                  {(fields, { add, remove }) => (
+                    <>
+                      {fields.map(({ key, name, ...restField }) => (
+                        <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                          <Form.Item {...restField} name={[name, 'key']} style={{ marginBottom: 0 }}>
+                            <Input placeholder="变量名" style={{ width: 200 }} />
+                          </Form.Item>
+                          <Form.Item {...restField} name={[name, 'value']} style={{ marginBottom: 0 }}>
+                            <Input placeholder="变量值" style={{ width: 280 }} />
+                          </Form.Item>
+                          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                        </Space>
+                      ))}
+                      <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                        添加环境变量
+                      </Button>
+                    </>
+                  )}
+                </Form.List>
+              ),
+            },
+            {
+              key: 'volumes',
+              label: '卷挂载',
+              children: (
+                <Form.List name="volumes">
+                  {(fields, { add, remove }) => (
+                    <>
+                      {fields.map(({ key, name, ...restField }) => (
+                        <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                          <Form.Item {...restField} name={[name, 'host']} style={{ marginBottom: 0 }}>
+                            <Input placeholder="主机路径" style={{ width: 200 }} />
+                          </Form.Item>
+                          <Form.Item {...restField} name={[name, 'container']} style={{ marginBottom: 0 }}>
+                            <Input placeholder="容器路径" style={{ width: 200 }} />
+                          </Form.Item>
+                          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                        </Space>
+                      ))}
+                      <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                        添加卷挂载
+                      </Button>
+                    </>
+                  )}
+                </Form.List>
+              ),
+            },
+            ...(selectedNode?.data?.model ? [{
+              key: 'modelInfo',
+              label: '模型信息',
+              children: (
+                <div>
+                  <p><strong>名称：</strong>{selectedNode.data.model.name || selectedNode.data.label}</p>
+                  {selectedNode.data.model.dockerImage && (
+                    <p><strong>Docker镜像：</strong><code>{selectedNode.data.model.dockerImage}</code></p>
+                  )}
+                  {selectedNode.data.model.description && (
+                    <p><strong>描述：</strong>{selectedNode.data.model.description}</p>
+                  )}
+                </div>
+              ),
+            }] : []),
+          ]} />
         </Form>
       </Modal>
 
       {/* 数据映射配置弹窗 */}
       {renderMappingModal()}
+
+      {/* 条件编辑弹窗 */}
+      <Modal
+        title="编辑条件表达式"
+        open={conditionModalVisible}
+        onOk={handleConditionSave}
+        onCancel={() => { setConditionModalVisible(false); setConditionEdgeId(null); }}
+        okText="保存"
+        cancelText="取消"
+        width={520}
+      >
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ fontSize: 13, color: '#666', margin: '0 0 8px' }}>
+            格式：<code>output.字段名 操作符 值</code>，条件为真时该边会激活
+          </p>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+            {['==', '!=', '>', '<', '>=', '<=', 'contains'].map(op => (
+              <Button key={op} size="small" onClick={() => setConditionExpression(prev => prev + ` ${op} `)}>{op}</Button>
+            ))}
+          </div>
+        </div>
+        <Input.TextArea
+          value={conditionExpression}
+          onChange={(e) => setConditionExpression(e.target.value)}
+          placeholder="例如: output.total_runoff > 50"
+          rows={3}
+          style={{ fontFamily: 'monospace' }}
+        />
+        <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
+          支持的操作符：==, !=, &gt;, &lt;, &gt;=, &lt;=, contains
+          <br />
+          操作数：<code>output.字段名</code>（上游输出）、数字、引号包围的字符串
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -2,10 +2,15 @@ package com.example.testproject.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.testproject.common.Result;
+import com.example.testproject.dto.WorkflowDefinition;
+import com.example.testproject.dto.WorkflowNode;
+import com.example.testproject.dto.WorkflowEdge;
 import com.example.testproject.entity.Task;
 import com.example.testproject.entity.Workflow;
 import com.example.testproject.security.CurrentUser;
+import com.example.testproject.service.DagParser;
 import com.example.testproject.service.WorkflowService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +27,8 @@ import java.util.UUID;
 public class WorkflowController {
     
     private final WorkflowService workflowService;
+    private final DagParser dagParser;
+    private final ObjectMapper objectMapper;
     
     /**
      * 获取工作流列表
@@ -100,5 +107,48 @@ public class WorkflowController {
         }
         Task task = workflowService.runWorkflow(id, inputs, userId);
         return Result.success(task);
+    }
+
+    /**
+     * 验证工作流定义
+     */
+    @PostMapping("/validate")
+    public Result<Map<String, Object>> validate(@RequestBody Map<String, Object> body) {
+        Object definitionObj = body.get("definition");
+        if (definitionObj == null) {
+            return Result.error(400, "缺少 definition 字段");
+        }
+
+        WorkflowDefinition definition = objectMapper.convertValue(definitionObj, WorkflowDefinition.class);
+        DagParser.ValidationResult validation = dagParser.validate(definition);
+
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("valid", validation.isValid());
+        if (!validation.isValid()) {
+            response.put("errors", validation.getErrors());
+        }
+
+        // Warnings for non-error issues
+        java.util.List<String> warnings = new java.util.ArrayList<>();
+        if (definition.getNodes() != null) {
+            for (WorkflowNode node : definition.getNodes()) {
+                if ("model".equals(node.getType()) && node.getModelId() == null) {
+                    warnings.add("节点 '" + (node.getName() != null ? node.getName() : node.getId()) + "' 未关联模型");
+                }
+            }
+        }
+        if (definition.getEdges() != null) {
+            for (WorkflowEdge edge : definition.getEdges()) {
+                if (edge.getCondition() != null && !edge.getCondition().trim().isEmpty()
+                        && (edge.getDataMapping() == null || edge.getDataMapping().isEmpty())) {
+                    warnings.add("边 '" + edge.getId() + "' 设置了条件但没有数据映射");
+                }
+            }
+        }
+        if (!warnings.isEmpty()) {
+            response.put("warnings", warnings);
+        }
+
+        return Result.success(response);
     }
 }

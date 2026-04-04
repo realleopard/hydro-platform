@@ -252,9 +252,10 @@ const ModelCreate = () => {
                   showSearch
                   placeholder="选择或输入镜像名称"
                   style={{ width: '100%' }}
-                  filterOption={(input, option) =>
-                    (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                  }
+                  filterOption={(input, option) => {
+                    const children = option?.children;
+                    return typeof children === 'string' ? children.toLowerCase().includes(input.toLowerCase()) : false;
+                  }}
                   onChange={(val) => {
                     form.setFieldValue('dockerImage', val);
                     setImageValidation(null);
