@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -26,9 +26,12 @@ import {
   QuestionCircleOutlined,
   ContainerOutlined,
   CodeOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { modelService } from '../../services/modelService';
+import { dockerService } from '../../services/dockerService';
 import {
   MODEL_CATEGORY_OPTIONS,
   DATA_TYPE_OPTIONS
@@ -44,6 +47,39 @@ const ModelCreate = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [interfaces, setInterfaces] = useState([]);
+  const [dockerImages, setDockerImages] = useState([]);
+  const [imageValidation, setImageValidation] = useState(null);
+  const [validating, setValidating] = useState(false);
+
+  useEffect(() => {
+    dockerService.getLocalImages().then(imgs => {
+      const tags = imgs.flatMap(img => (img.repoTags || []).map(t => t));
+      setDockerImages([...new Set(tags)]);
+    }).catch(() => {});
+  }, []);
+
+  const handleValidateImage = async () => {
+    const imageName = form.getFieldValue('dockerImage');
+    if (!imageName) return;
+    setValidating(true);
+    setImageValidation(null);
+    try {
+      const parts = imageName.split(':');
+      const name = parts[0];
+      const tag = parts[1] || 'latest';
+      const result = await dockerService.validateImage(name, tag);
+      setImageValidation(result);
+      if (!result.exists) {
+        message.warning('镜像不存在于本地或Registry中');
+      } else {
+        message.success('镜像验证通过');
+      }
+    } catch {
+      message.error('镜像验证失败');
+    } finally {
+      setValidating(false);
+    }
+  };
 
   // 步骤内容
   const steps = [
@@ -194,7 +230,7 @@ const ModelCreate = () => {
               label={
                 <span>
                   Docker镜像
-                  <Tooltip title="格式：registry/namespace/image:tag">
+                  <Tooltip title="格式：registry/namespace/image:tag，可从下拉列表选择或手动输入">
                     <QuestionCircleOutlined className={styles.tooltipIcon} />
                   </Tooltip>
                 </span>
@@ -202,8 +238,34 @@ const ModelCreate = () => {
               rules={[
                 { required: true, message: '请输入Docker镜像地址' }
               ]}
+              extra={imageValidation && (
+                <span style={{ fontSize: 12 }}>
+                  {imageValidation.exists
+                    ? <span style={{ color: '#52c41a' }}><CheckCircleOutlined /> 镜像可用</span>
+                    : <span style={{ color: '#ff4d4f' }}><CloseCircleOutlined /> 镜像未找到</span>
+                  }
+                </span>
+              )}
             >
-              <Input placeholder="例如：hydro-platform/swat:v1.0.0" />
+              <Space.Compact style={{ width: '100%' }}>
+                <Select
+                  showSearch
+                  placeholder="选择或输入镜像名称"
+                  style={{ width: '100%' }}
+                  filterOption={(input, option) =>
+                    (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
+                  }
+                  onChange={(val) => {
+                    form.setFieldValue('dockerImage', val);
+                    setImageValidation(null);
+                  }}
+                >
+                  {dockerImages.map(tag => (
+                    <Option key={tag} value={tag}>{tag}</Option>
+                  ))}
+                </Select>
+                <Button loading={validating} onClick={handleValidateImage}>验证</Button>
+              </Space.Compact>
             </Form.Item>
 
             <Form.Item
