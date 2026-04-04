@@ -11,7 +11,7 @@ DECLARE
     admin_id UUID;
 BEGIN
     -- Find model IDs by docker image name
-    SELECT id INTO scs_cn_id FROM models WHERE docker_image = 'alpine:latest' LIMIT 1;
+    SELECT id INTO scs_cn_id FROM models WHERE docker_image = 'watershed/scs-cn:v1.0.0' LIMIT 1;
     SELECT id INTO muskingum_id FROM models WHERE docker_image = 'watershed/muskingum:v1.0.0' LIMIT 1;
     SELECT id INTO penman_id FROM models WHERE docker_image = 'watershed/penman-monteith:v1.0.0' LIMIT 1;
     SELECT id INTO freq_id FROM models WHERE docker_image = 'watershed/frequency-analysis:v1.0.0' LIMIT 1;
@@ -52,14 +52,14 @@ BEGIN
             'edges', jsonb_build_array(
                 jsonb_build_object('id', 'edge-ab', 'source', 'node-a', 'target', 'node-b',
                     'condition', 'output.exitCode == 0',
-                    'dataMapping', jsonb_build_object('inflow', 'exitCode')),
+                    'dataMapping', jsonb_build_object('inflow', 'runoff')),
                 jsonb_build_object('id', 'edge-ac', 'source', 'node-a', 'target', 'node-c',
                     'condition', 'output.exitCode != 0',
-                    'dataMapping', jsonb_build_object('temperature', 'exitCode')),
+                    'dataMapping', jsonb_build_object('temperature', 'runoff')),
                 jsonb_build_object('id', 'edge-bd', 'source', 'node-b', 'target', 'node-d',
-                    'dataMapping', jsonb_build_object('annual_maxima', 'exitCode')),
+                    'dataMapping', jsonb_build_object('annual_maxima', 'outflow')),
                 jsonb_build_object('id', 'edge-cd', 'source', 'node-c', 'target', 'node-d',
-                    'dataMapping', jsonb_build_object('annual_maxima', 'exitCode'))
+                    'dataMapping', jsonb_build_object('annual_maxima', 'ET0'))
             )
         ),
         'active',
